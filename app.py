@@ -95,7 +95,6 @@ tab_chat, tab_acerca_de = st.tabs(["Consultar a Janus 💬", "Acerca de este Pro
 # --- Pestaña 1: El Chat (¡AHORA ES UN FORMULARIO!) ---
 with tab_chat:
     
-    # --- ¡SALUDO CORREGIDO! ---
     st.header("Haz tu consulta")
     st.markdown("¡Hola! Soy Janus, tu asistente virtual. ¡Estoy aquí para guiarte en tu Inversión Directa en Colombia!")
 
@@ -106,16 +105,12 @@ with tab_chat:
         st.error(f"Error al cargar el motor del asistente: {e}")
         st.stop()
 
-    # --- ¡CAMBIO DE INTERFAZ! ---
     # Usamos un Formulario para agrupar la entrada y el botón
     with st.form("query_form"):
-        # 1. La caja de entrada (ya no es st.chat_input)
         prompt = st.text_area("Escribe tu consulta aquí:", height=150)
-        
-        # 2. El botón de envío
         submitted = st.form_submit_button("Enviar Consulta a Janus")
 
-    # 3. La caja de respuesta (aparece solo si se envía)
+    # La caja de respuesta (aparece solo si se envía)
     if submitted:
         if not prompt:
             st.warning("Por favor, escribe una pregunta.")
@@ -125,10 +120,17 @@ with tab_chat:
                     respuesta = query_engine.query(prompt)
                     response_text = str(respuesta)
                     
-                    # --- ¡CAMBIO DE RESPUESTA! ---
                     # Usamos un "expander" para que la respuesta se vea como un "informe"
                     with st.expander("Ver Respuesta de Janus", expanded=True):
                         st.markdown(response_text)
+                        
+                        # --- ¡AQUÍ ESTÁ EL CAMBIO! ---
+                        st.download_button(
+                            label="📥 Guardar Respuesta (.txt)",
+                            data=response_text,
+                            file_name="respuesta_janus.txt",
+                            mime="text/plain"
+                        )
                     
                 except Exception as e:
                     response_text = f"Error al contactar a Gemini: {e}. Por favor, espera unos segundos e inténtalo de nuevo."
