@@ -97,55 +97,51 @@ except Exception as e:
     st.error(f"Error al cargar el motor del asistente: {e}")
     st.stop()
 
-# --- 2. Pestañas de Funciones (¡MODIFICADAS!) ---
-tab_chat, tab_faq = st.tabs(["Conversar con Janus 💬", "Preguntas Frecuentes 💡"])
+# --- 2. Pestañas de Funciones ---
+tab_chat, tab_faq = st.tabs(["Consultar a Janus 💬", "Preguntas Frecuentes 💡"])
 
-# --- Pestaña 1: El Chat (¡SIMPLIFICADA!) ---
+# --- Pestaña 1: El Chat (¡CON EL DISEÑO "FORMULARIO" QUE TE GUSTÓ!) ---
 with tab_chat:
     
-    # Inicializa el saludo de Janus
-    if "messages" not in st.session_state:
-        st.session_state.messages = [
-            {"role": "assistant", "content": "¡Hola! Soy Janus, tu asistente virtual. ¡Estoy aquí para guiarte en tu Inversión Directa en Colombia!"}
-        ]
+    # --- ¡SALUDO CORREGIDO! ---
+    st.header("Haz tu consulta")
+    st.markdown("¡Hola! Soy Janus, tu asistente virtual. ¡Estoy aquí para guiarte en tu Inversión Directa en Colombia!")
 
-    # ¡INTERFAZ CORREGIDA! (Contenedor con altura)
-    chat_container = st.container(height=500) 
+    # --- ¡DISEÑO "FORMULARIO"! ---
+    with st.form("query_form"):
+        prompt = st.text_area("Escribe tu consulta aquí:", height=150)
+        submitted = st.form_submit_button("Enviar Consulta a Janus")
 
-    # Muestra los mensajes antiguos DENTRO del contenedor
-    with chat_container:
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
+    # La caja de respuesta (aparece solo si se envía)
+    if submitted:
+        if not prompt:
+            st.warning("Por favor, escribe una pregunta.")
+        else:
+            with st.spinner("Consultando la Guía Legal y contactando a Gemini..."):
+                try:
+                    respuesta = query_engine.query(prompt)
+                    response_text = str(respuesta)
+                    
+                    # Usamos un "expander" para que la respuesta se vea como un "informe"
+                    with st.expander("Ver Respuesta de Janus", expanded=True):
+                        st.markdown(response_text)
+                        
+                        # ¡CON EL BOTÓN DE DESCARGA!
+                        st.download_button(
+                            label="📥 Guardar Respuesta (.txt)",
+                            data=response_text,
+                            file_name="respuesta_janus.txt",
+                            mime="text/plain"
+                        )
+                    
+                except Exception as e:
+                    response_text = f"Error al contactar a Gemini: {e}. Por favor, espera unos segundos e inténtalo de nuevo."
+                    st.error(response_text)
 
-    # Caja de chat (Fija al fondo de la pestaña)
-    if prompt := st.chat_input("Pregúntale a Janus sobre la Guía Legal..."):
-        
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        
-        # Muestra el prompt del usuario
-        with chat_container:
-            with st.chat_message("user"):
-                st.markdown(prompt)
-
-        # Genera y muestra la respuesta
-        with chat_container:
-            with st.chat_message("assistant"):
-                with st.spinner("Consultando la Guía Legal y contactando a Gemini..."):
-                    try:
-                        respuesta = query_engine.query(prompt)
-                        response_text = str(respuesta)
-                    except Exception as e:
-                        response_text = f"Error al contactar a Gemini: {e}. Por favor, espera unos segundos e inténtalo de nuevo."
-                
-                st.markdown(response_text)
-        
-        st.session_state.messages.append({"role": "assistant", "content": response_text})
-
-# --- Pestaña 2: Información (¡NUEVA!) ---
+# --- Pestaña 2: Preguntas Frecuentes (¡NUEVA!) ---
 with tab_faq:
     st.header("Preguntas Frecuentes (FAQs)")
-    st.markdown("Haz clic en una pregunta para que Janus la investigue por ti. La respuesta aparecerá en la pestaña 'Conversar con Janus'.")
+    st.markdown("Haz clic en una pregunta para que Janus la investigue por ti.")
     st.divider()
 
     # --- Definimos las 5 preguntas clave ---
@@ -156,31 +152,59 @@ with tab_faq:
     faq_5 = "¿Qué protecciones legales o tratados internacionales (como Acuerdos de Estabilidad Jurídica) ofrece Colombia para proteger mi inversión?"
 
     # --- Lógica de Botones ---
+    # (La respuesta aparece aquí mismo, en un expander)
     
-    def handle_faq_click(question_text):
-        """Función para manejar el clic en un botón de FAQ."""
+    if st.button(faq_1):
         with st.spinner("Janus está consultando la Guía..."):
             try:
-                respuesta = query_engine.query(question_text)
-                # Añade la Q&A al historial del chat principal
-                st.session_state.messages.append({"role": "user", "content": question_text})
-                st.session_state.messages.append({"role": "assistant", "content": str(respuesta)})
-                st.success("¡Respuesta lista! Revisa la pestaña 'Conversar con Janus' 💬")
+                respuesta = query_engine.query(faq_1)
+                response_text = str(respuesta)
+                with st.expander("Respuesta (Incentivos Energías Renovables)", expanded=True):
+                    st.markdown(response_text)
+                    st.download_button("📥 Guardar", data=response_text, file_name="respuesta_janus_incentivos.txt")
+            except Exception as e:
+                st.error(f"Error al contactar a Gemini: {e}")
+        
+    if st.button(faq_2):
+        with st.spinner("Janus está consultando la Guía..."):
+            try:
+                respuesta = query_engine.query(faq_2)
+                response_text = str(respuesta)
+                with st.expander("Respuesta (Estructura S.A.S.)", expanded=True):
+                    st.markdown(response_text)
+                    st.download_button("📥 Guardar", data=response_text, file_name="respuesta_janus_sas.txt")
             except Exception as e:
                 st.error(f"Error al contactar a Gemini: {e}")
 
-    # --- Muestra los botones ---
-    if st.button(faq_1):
-        handle_faq_click(faq_1)
-        
-    if st.button(faq_2):
-        handle_faq_click(faq_2)
-
     if st.button(faq_3):
-        handle_faq_click(faq_3)
+        with st.spinner("Janus está consultando la Guía..."):
+            try:
+                respuesta = query_engine.query(faq_3)
+                response_text = str(respuesta)
+                with st.expander("Respuesta (Repatriación de Utilidades)", expanded=True):
+                    st.markdown(response_text)
+                    st.download_button("📥 Guardar", data=response_text, file_name="respuesta_janus_utilidades.txt")
+            except Exception as e:
+                st.error(f"Error al contactar a Gemini: {e}")
         
     if st.button(faq_4):
-        handle_faq_click(faq_4)
+        with st.spinner("Janus está consultando la Guía..."):
+            try:
+                respuesta = query_engine.query(faq_4)
+                response_text = str(respuesta)
+                with st.expander("Respuesta (Permisos y Licencias)", expanded=True):
+                    st.markdown(response_text)
+                    st.download_button("📥 Guardar", data=response_text, file_name="respuesta_janus_licencias.txt")
+            except Exception as e:
+                st.error(f"Error al contactar a Gemini: {e}")
         
     if st.button(faq_5):
-        handle_faq_click(faq_5)
+        with st.spinner("Janus está consultando la Guía..."):
+            try:
+                respuesta = query_engine.query(faq_5)
+                response_text = str(respuesta)
+                with st.expander("Respuesta (Protecciones Legales)", expanded=True):
+                    st.markdown(response_text)
+                    st.download_button("📥 Guardar", data=response_text, file_name="respuesta_janus_proteccion.txt")
+            except Exception as e:
+                st.error(f"Error al contactar a Gemini: {e}")
