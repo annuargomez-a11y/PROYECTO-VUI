@@ -47,10 +47,10 @@ def get_query_engine():
     # Configura el "Cerebro" (LLM - Google)
     llm = GoogleGenAI(model="models/gemini-pro-latest")
     
-    # --- ¡CAMBIO DE "TRADUCTOR"! ---
-    # Usamos bge-m3, que es multilingüe Y de alta precisión.
+    # --- ¡VOLVEMOS AL "TRADUCTOR" LIGERO! ---
+    # Este modelo SÍ cabe en la memoria gratuita de Streamlit.
     embed_model = HuggingFaceEmbedding(
-        model_name="BAAI/bge-m3", 
+        model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", 
         device="cpu" 
     )
 
@@ -102,7 +102,7 @@ with tab_chat:
             {"role": "assistant", "content": "¡Hola! Soy Janus, tu asistente virtual. ¡Estoy aquí para guiarte en tu Inversión Directa en Colombia!"}
         ]
 
-    # --- ¡CAMBIO DE INTERFAZ! ---
+    # --- ¡INTERFAZ CORREGIDA! ---
     # Creamos un contenedor con altura fija para el historial
     chat_container = st.container(height=500) # Puedes ajustar el 500
 
@@ -150,14 +150,14 @@ with tab_acerca_de:
     st.header("Sobre este Prototipo")
     # ... (El resto del código de la pestaña 2) ...
     st.markdown("""
-    Este es un prototipo RAG (Generación Aumentada por Recuperación)
+    Este es un prototipo RAG (Generación Aumentada por RecuperACIÓN)
     con "Corte Inteligente" (Smart Chunking).
     
     **Tecnologías utilizadas:**
     * **Interfaz:** Streamlit
     * **Orquestador RAG:** LlamaIndex
     * **Cerebro (LLM):** Google Gemini (`gemini-pro-latest`)
-    * **Traductor (Embedding):** `BAAI/bge-m3` (Local/CPU)
-    * **Base de Conocimiento:** 14 PDFs de la Guía Legal 2025.
+    * **Traductor (Embedding):** `paraphrase-multilingual-MiniLM-L12-v2` (Local/CPU)
+* **Base de Conocimiento:** 14 PDFs de la Guía Legal 2025.
     """)
     st.warning("El arranque inicial de esta aplicación tarda 2-3 minutos mientras se crea el índice de los PDFs.")
