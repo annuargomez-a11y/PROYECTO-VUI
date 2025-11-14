@@ -1,13 +1,11 @@
 import os
 import sys
 import logging
-import streamlit as st  # <-- ¡NUEVO! Importamos Streamlit
-import nest_asyncio     # <-- Importamos el parche de Colab
+import streamlit as st
+import nest_asyncio
 
-# Aplicamos el parche de "asyncio" al inicio
+# --- PARCHES CRÍTICOS (¡No tocar!) ---
 nest_asyncio.apply()
-
-# Forzamos el modo CPU para evitar 100% el error de DLL/GPU
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 from llama_index.core import (
@@ -17,109 +15,144 @@ from llama_index.core import (
     load_index_from_storage,
     Settings
 )
+# --- ¡NUEVA IMPORTACIÓN! ---
+from llama_index.core.node_parser import SentenceSplitter 
+
 from llama_index.llms.google_genai import GoogleGenAI
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 
-# --- CONFIGURACIÓN ---
-# Usamos los "Secretos" de Streamlit para la clave API
-# (NO pongas tu clave directamente en el código)
-# Verificamos si la clave existe en los secretos de Streamlit
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(
+    page_title="Asistente Janus (VUI)",
+    page_icon="🗝️",
+    layout="centered" 
+)
+
+# --- CONFIGURACIÓN DE API ---
 if "GOOGLE_API_KEY" in st.secrets:
-    os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
+    os.environ["GOOGLE_API_KEY"] = st.secrets["AIzaSyAQdW71gNq9s2KS-hGs0X1r0zeMFxcKWbQ"]
 else:
-    # Si no estamos en Streamlit Cloud, mostramos un error
     st.error("Error: Falta la clave API de Google. Configúrala en los 'Secrets' de Streamlit.")
-    st.stop() # Detiene la ejecución si no hay clave
+    st.stop() 
 
 pdf_folder_path = "./ARCHIVOS/"
-persist_dir = "./storage"
+persist_dir = "./storage" # (Streamlit Cloud reconstruye esto, así que no es persistente)
 
-# --- LÓGICA RAG (CACHEADA) ---
-
-# ¡¡¡ESTA ES LA CLAVE!!!
-# @st.cache_resource le dice a Streamlit que "guarde" esta función.
-# No recargará el índice cada vez que el usuario haga una pregunta.
+# --- FUNCIÓN DEL MOTOR RAG (¡MODIFICADA!) ---
 @st.cache_resource
 def get_query_engine():
     """
     Carga o crea el índice vectorial y devuelve un motor de consulta.
+    Esta función se guarda en caché para no recargarla todo el tiempo.
     """
     
     # Configura el "Cerebro" (LLM - Google)
     llm = GoogleGenAI(model="models/gemini-pro-latest")
     
-    # ESTA ES LA LÍNEA NUEVA (MULTILINGÜE)
+    # Configura el "Traductor" (Embedding Model - Local Multilingüe)
     embed_model = HuggingFaceEmbedding(
-    model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", 
-    device="cpu" 
-)
+        model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", 
+        device="cpu" 
+    )
 
     Settings.llm = llm
     Settings.embed_model = embed_model
     
-    # En Streamlit Cloud, el "storage" no es persistente.
-    # Así que siempre crearemos el índice al iniciar la app.
-    # (Para 14 PDFs, esto tarda 1-2 minutos y está bien para un prototipo).
+    print("Creando índice desde cero (ejecución en la nube)...")
     
-    print("No se encontró índice local o estamos en la nube. Creando uno nuevo...")
+    # 1. Cargar los documentos (igual que antes)
     reader = SimpleDirectoryReader(input_dir=pdf_folder_path, recursive=True)
     documents = reader.load_data()
-    print(f"Se cargaron {len(documents)} documentos. Creando índice...")
+    print(f"Se cargaron {len(documents)} documentos.")
     
-    index = VectorStoreIndex.from_documents(
-        documents, 
+    # --- ¡PASO NUEVO! "Corte Inteligente" ---
+    # 2. Definir un "cortador" (Parser)
+    # Cortará el texto en trozos de 1024 tokens (aprox. 3-4 párrafos)
+    # y superpondrá 100 tokens para no cortar ideas.
+    print("Analizando y cortando los documentos en párrafos inteligentes...")
+    node_parser = SentenceSplitter(
+        chunk_size=1024,
+        chunk_overlap=100
+    )
+    # 3. "Cortar" los documentos en Nodos inteligentes
+    nodes = node_parser.get_nodes_from_documents(documents, show_progress=True)
+    print(f"Se crearon {len(nodes)} trozos (nodos) de texto inteligente.")
+    
+    # 4. Crear el índice usando los "Nodos" (no los "documentos")
+    print("Creando índice (esto puede tardar unos minutos)...")
+    index = VectorStoreIndex(
+        nodes, # <-- ¡Usamos los Nodos!
         show_progress=True, 
         embed_batch_size=100
     )
     
     print("¡Índice creado exitosamente en memoria!")
-    
-    query_engine = index.as_query_engine(similarity_top_k=5)
+    query_engine = index.as_query_engine(similarity_top_k=3) # <-- Reducimos a 3 trozos
     print("¡Sistema listo para responder!")
     return query_engine
 
-# --- INTERFAZ DE USUARIO DE STREAMLIT ---
+# --- INTERFAZ DE USUARIO "ASISTENTE JANUS" ---
+# (Esta parte no cambia en absoluto)
 
-st.title("🤖 Asistente Virtual VUI (Prototipo)")
-st.caption("Respondo preguntas basándome en los 14 PDFs de la Guía Legal 2025.")
+# --- 1. Cabecera Profesional ---
+col1, col2 = st.columns([1, 4]) 
+with col1:
+    st.image("https://www.procolombia.co/themes/procolombia/assets/images/logo-procolombia-black.svg", width=100) 
 
-# Inicializa el historial de chat (para que recuerde la conversación)
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+with col2:
+    st.title("Asistente Janus")
+    st.caption("Tu guía para la Ventanilla Única de Inversión (VUI).")
 
-# Muestra los mensajes antiguos
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# --- 2. Pestañas de Funciones ---
+tab_chat, tab_acerca_de = st.tabs(["Conversar con Janus 💬", "Acerca de este Prototipo ℹ️"])
 
-# Carga el motor de consulta (esto usará el caché)
-try:
-    query_engine = get_query_engine()
-except Exception as e:
-    st.error(f"Error al cargar el índice: {e}")
-    st.stop()
-
-
-# Obtiene la nueva pregunta del usuario
-if prompt := st.chat_input("¿Qué quieres saber sobre invertir en Colombia?"):
+# --- Pestaña 1: El Chat ---
+with tab_chat:
     
-    # Añade la pregunta del usuario al historial y la muestra
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    if "messages" not in st.session_state:
+        st.session_state.messages = [
+            {"role": "assistant", "content": "¡Hola! Soy Janus, tu asistente virtual. Estoy aquí para guiarte por los 14 PDFs de la Guía Legal 2025. ¿En qué puedo ayudarte hoy?"}
+        ]
 
-    # Genera la respuesta del asistente
-    with st.chat_message("assistant"):
-        with st.spinner("Buscando en los 14 PDFs y contactando a Gemini..."):
-            try:
-                respuesta = query_engine.query(prompt)
-                response_text = str(respuesta)
-            except Exception as e:
-                # Captura errores de API (como el 503)
-                response_text = f"Error al contactar a Gemini: {e}"
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    try:
+        query_engine = get_query_engine()
+    except Exception as e:
+        st.error(f"Error al cargar el motor del asistente: {e}")
+        st.stop()
+
+    if prompt := st.chat_input("Pregúntale a Janus sobre la Guía Legal..."):
+        
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            with st.spinner("Consultando la Guía Legal y contactando a Gemini..."):
+                try:
+                    respuesta = query_engine.query(prompt)
+                    response_text = str(respuesta)
+                except Exception as e:
+                    response_text = f"Error al contactar a Gemini: {e}. Por favor, espera unos segundos e inténtalo de nuevo."
         
         st.markdown(response_text)
-    
-    # Añade la respuesta del asistente al historial
+        st.session_state.messages.append({"role": "assistant", "content": response_text})
 
-    st.session_state.messages.append({"role": "assistant", "content": response_text})
+# --- Pestaña 2: Información ---
+with tab_acerca_de:
+    st.header("Sobre este Prototipo")
+    st.markdown("""
+    Este es un prototipo RAG (Generación Aumentada por Recuperación)
+    con "Corte Inteligente" (Smart Chunking).
+    
+    **Tecnologías utilizadas:**
+    * **Interfaz:** Streamlit
+    * **Orquestador RAG:** LlamaIndex
+    * **Cerebro (LLM):** Google Gemini (`gemini-pro-latest`)
+    * **Traductor (Embedding):** `paraphrase-multilingual-MiniLM-L12-v2` (Local/CPU)
+    * **Base de Conocimiento:** 14 PDFs de la Guía Legal 2025.
+    """)
+    st.warning("El arranque inicial de esta aplicación tarda 2-3 minutos mientras se crea el índice de los PDFs.")
