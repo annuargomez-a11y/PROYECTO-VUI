@@ -48,11 +48,11 @@ def get_query_engine():
     # Configura el "Cerebro" (LLM - Google)
     llm = GoogleGenAI(model="models/gemini-pro-latest")
     
-    # Configura el "Traductor" (Embedding Model - Local en CPU)
+    # ESTA ES LA LÍNEA NUEVA (MULTILINGÜE)
     embed_model = HuggingFaceEmbedding(
-        model_name="BAAI/bge-small-en-v1.5", 
-        device="cpu" 
-    )
+    model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", 
+    device="cpu" 
+)
 
     Settings.llm = llm
     Settings.embed_model = embed_model
@@ -121,4 +121,5 @@ if prompt := st.chat_input("¿Qué quieres saber sobre invertir en Colombia?"):
         st.markdown(response_text)
     
     # Añade la respuesta del asistente al historial
+
     st.session_state.messages.append({"role": "assistant", "content": response_text})
