@@ -30,7 +30,8 @@ st.set_page_config(
 
 # --- CONFIGURACIÓN DE API ---
 if "GOOGLE_API_KEY" in st.secrets:
-    os.environ["GOOGLE_API_KEY"] = st.secrets["AIzaSyAQdW71gNq9s2KS-hGs0X1r0zeMFxcKWbQ"]
+    # ESTA ES LA LÍNEA CORRECTA
+    os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
 else:
     st.error("Error: Falta la clave API de Google. Configúrala en los 'Secrets' de Streamlit.")
     st.stop() 
@@ -156,3 +157,4 @@ with tab_acerca_de:
     * **Base de Conocimiento:** 14 PDFs de la Guía Legal 2025.
     """)
     st.warning("El arranque inicial de esta aplicación tarda 2-3 minutos mientras se crea el índice de los PDFs.")
+
