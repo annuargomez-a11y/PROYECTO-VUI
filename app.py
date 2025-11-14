@@ -37,7 +37,7 @@ else:
 pdf_folder_path = "./ARCHIVOS/"
 persist_dir = "./storage" # (Streamlit Cloud reconstruye esto, así que no es persistente)
 
-# --- FUNCIÓN DEL MOTOR RAG (¡ACTUALIZADA!) ---
+# --- FUNCIÓN DEL MOTOR RAG (Sin cambios) ---
 @st.cache_resource
 def get_query_engine():
     """
@@ -47,8 +47,7 @@ def get_query_engine():
     # Configura el "Cerebro" (LLM - Google)
     llm = GoogleGenAI(model="models/gemini-pro-latest")
     
-    # --- ¡VOLVEMOS AL "TRADUCTOR" LIGERO! ---
-    # Este modelo SÍ cabe en la memoria gratuita de Streamlit.
+    # Volvemos al "Traductor" ligero que SÍ cabe en la memoria.
     embed_model = HuggingFaceEmbedding(
         model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", 
         device="cpu" 
@@ -76,7 +75,7 @@ def get_query_engine():
     index = VectorStoreIndex(
         nodes, 
         show_progress=True, 
-        embed_batch_size=100 # Lo mantenemos en lotes
+        embed_batch_size=100
     )
     
     print("¡Índice creado exitosamente en memoria!")
@@ -84,33 +83,20 @@ def get_query_engine():
     print("¡Sistema listo para responder!")
     return query_engine
 
-# --- INTERFAZ DE USUARIO "ASISTENTE JANUS" ---
+# --- INTERFAZ DE USUARIO "ASISTENTE JANUS" (¡DISEÑO FORMULARIO!) ---
 
 # --- 1. Cabecera (Sin cambios) ---
 st.title("Asistente Janus")
 st.caption("Tu guía para la Ventanilla Única de Inversión (VUI).")
 
 # --- 2. Pestañas de Funciones (Sin cambios) ---
-tab_chat, tab_acerca_de = st.tabs(["Conversar con Janus 💬", "Acerca de este Prototipo ℹ️"])
+tab_chat, tab_acerca_de = st.tabs(["Consultar a Janus 💬", "Acerca de este Prototipo ℹ️"])
 
-# --- Pestaña 1: El Chat (¡ACTUALIZADA!) ---
+# --- Pestaña 1: El Chat (¡AHORA ES UN FORMULARIO!) ---
 with tab_chat:
     
-    # Inicializa el saludo de Janus
-    if "messages" not in st.session_state:
-        st.session_state.messages = [
-            {"role": "assistant", "content": "¡Hola! Soy Janus, tu asistente virtual. ¡Estoy aquí para guiarte en tu Inversión Directa en Colombia!"}
-        ]
-
-    # --- ¡INTERFAZ CORREGIDA! ---
-    # Creamos un contenedor con altura fija para el historial
-    chat_container = st.container(height=500) # Puedes ajustar el 500
-
-    # Muestra los mensajes antiguos DENTRO del contenedor
-    with chat_container:
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
+    st.header("Haz tu consulta")
+    st.markdown("¡Hola! Soy Janus. Escribe tu pregunta sobre la Guía Legal 2025 y te ayudaré a encontrar la respuesta.")
 
     # Carga el motor de consulta
     try:
@@ -119,31 +105,31 @@ with tab_chat:
         st.error(f"Error al cargar el motor del asistente: {e}")
         st.stop()
 
-    # Caja de chat (Queda FUERA del contenedor, fija al fondo de la pestaña)
-    if prompt := st.chat_input("Pregúntale a Janus sobre la Guía Legal..."):
+    # --- ¡CAMBIO DE INTERFAZ! ---
+    # Usamos un Formulario para agrupar la entrada y el botón
+    with st.form("query_form"):
+        # 1. La caja de entrada (ya no es st.chat_input)
+        prompt = st.text_area("Pregúntale a Janus:", height=150)
         
-        # Añade el prompt al historial de estado
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        
-        # Muestra el prompt del usuario DENTRO del contenedor
-        with chat_container:
-            with st.chat_message("user"):
-                st.markdown(prompt)
+        # 2. El botón de envío
+        submitted = st.form_submit_button("Enviar Consulta")
 
-        # Genera y muestra la respuesta DENTRO del contenedor
-        with chat_container:
-            with st.chat_message("assistant"):
-                with st.spinner("Consultando la Guía Legal y contactando a Gemini..."):
-                    try:
-                        respuesta = query_engine.query(prompt)
-                        response_text = str(respuesta)
-                    except Exception as e:
-                        response_text = f"Error al contactar a Gemini: {e}. Por favor, espera unos segundos e inténtalo de nuevo."
-                
-                st.markdown(response_text)
-        
-        # Añade la respuesta al historial de estado
-        st.session_state.messages.append({"role": "assistant", "content": response_text})
+    # 3. La caja de respuesta (aparece solo si se envía)
+    if submitted:
+        if not prompt:
+            st.warning("Por favor, escribe una pregunta.")
+        else:
+            with st.spinner("Consultando la Guía Legal y contactando a Gemini..."):
+                try:
+                    respuesta = query_engine.query(prompt)
+                    response_text = str(respuesta)
+                    
+                    st.subheader("Respuesta de Janus:")
+                    st.success(response_text) # st.success pone un fondo verde
+                    
+                except Exception as e:
+                    response_text = f"Error al contactar a Gemini: {e}. Por favor, espera unos segundos e inténtalo de nuevo."
+                    st.error(response_text)
 
 # --- Pestaña 2: Información (Sin cambios) ---
 with tab_acerca_de:
@@ -158,6 +144,6 @@ with tab_acerca_de:
     * **Orquestador RAG:** LlamaIndex
     * **Cerebro (LLM):** Google Gemini (`gemini-pro-latest`)
     * **Traductor (Embedding):** `paraphrase-multilingual-MiniLM-L12-v2` (Local/CPU)
-* **Base de Conocimiento:** 14 PDFs de la Guía Legal 2025.
+    * **Base de Conocimiento:** 14 PDFs de la Guía Legal 2025.
     """)
     st.warning("El arranque inicial de esta aplicación tarda 2-3 minutos mientras se crea el índice de los PDFs.")
