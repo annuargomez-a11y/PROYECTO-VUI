@@ -83,71 +83,104 @@ def get_query_engine():
     print("¡Sistema listo para responder!")
     return query_engine
 
-# --- INTERFAZ DE USUARIO "ASISTENTE JANUS" (¡DISEÑO FORMULARIO!) ---
+# --- INTERFAZ DE USUARIO "ASISTENTE JANUS" ---
 
 # --- 1. Cabecera (Sin cambios) ---
 st.title("Asistente Janus")
 st.caption("Tu guía para la Ventanilla Única de Inversión (VUI).")
 
-# --- 2. Pestañas de Funciones (Sin cambios) ---
-tab_chat, tab_acerca_de = st.tabs(["Consultar a Janus 💬", "Acerca de este Prototipo ℹ️"])
+# --- ¡NUEVO! Carga el motor ANTES de las pestañas ---
+# (Así ambas pestañas pueden usarlo)
+try:
+    query_engine = get_query_engine()
+except Exception as e:
+    st.error(f"Error al cargar el motor del asistente: {e}")
+    st.stop()
 
-# --- Pestaña 1: El Chat (¡AHORA ES UN FORMULARIO!) ---
+# --- 2. Pestañas de Funciones (¡MODIFICADAS!) ---
+tab_chat, tab_faq = st.tabs(["Conversar con Janus 💬", "Preguntas Frecuentes 💡"])
+
+# --- Pestaña 1: El Chat (¡SIMPLIFICADA!) ---
 with tab_chat:
     
-    st.header("Haz tu consulta")
-    st.markdown("¡Hola! Soy Janus, tu asistente virtual. ¡Estoy aquí para guiarte en tu Inversión Directa en Colombia!")
+    # Inicializa el saludo de Janus
+    if "messages" not in st.session_state:
+        st.session_state.messages = [
+            {"role": "assistant", "content": "¡Hola! Soy Janus, tu asistente virtual. ¡Estoy aquí para guiarte en tu Inversión Directa en Colombia!"}
+        ]
 
-    # Carga el motor de consulta
-    try:
-        query_engine = get_query_engine()
-    except Exception as e:
-        st.error(f"Error al cargar el motor del asistente: {e}")
-        st.stop()
+    # ¡INTERFAZ CORREGIDA! (Contenedor con altura)
+    chat_container = st.container(height=500) 
 
-    # Usamos un Formulario para agrupar la entrada y el botón
-    with st.form("query_form"):
-        prompt = st.text_area("Escribe tu consulta aquí:", height=150)
-        submitted = st.form_submit_button("Enviar Consulta a Janus")
+    # Muestra los mensajes antiguos DENTRO del contenedor
+    with chat_container:
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
 
-    # La caja de respuesta (aparece solo si se envía)
-    if submitted:
-        if not prompt:
-            st.warning("Por favor, escribe una pregunta.")
-        else:
-            with st.spinner("Consultando la Guía Legal y contactando a Gemini..."):
-                try:
-                    respuesta = query_engine.query(prompt)
-                    response_text = str(respuesta)
-                    
-                    # Usamos un "expander" para que la respuesta se vea como un "informe"
-                    with st.expander("Ver Respuesta de Janus", expanded=True):
-                        st.markdown(response_text)
-                        
-                        # --- ¡AQUÍ ESTÁ EL CAMBIO! ---
-                        st.download_button(
-                            label="📥 Guardar Respuesta (.txt)",
-                            data=response_text,
-                            file_name="respuesta_janus.txt",
-                            mime="text/plain"
-                        )
-                    
-                except Exception as e:
-                    response_text = f"Error al contactar a Gemini: {e}. Por favor, espera unos segundos e inténtalo de nuevo."
-                    st.error(response_text)
+    # Caja de chat (Fija al fondo de la pestaña)
+    if prompt := st.chat_input("Pregúntale a Janus sobre la Guía Legal..."):
+        
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        # Muestra el prompt del usuario
+        with chat_container:
+            with st.chat_message("user"):
+                st.markdown(prompt)
 
-# --- Pestaña 2: Información (Sin cambios) ---
-with tab_acerca_de:
-    st.header("Sobre este Prototipo")
-    st.markdown("""
-    Este es un prototipo RAG (Generación Aumentada por RecuperACIÓN)
-    con "Corte Inteligente" (Smart Chunking).
+        # Genera y muestra la respuesta
+        with chat_container:
+            with st.chat_message("assistant"):
+                with st.spinner("Consultando la Guía Legal y contactando a Gemini..."):
+                    try:
+                        respuesta = query_engine.query(prompt)
+                        response_text = str(respuesta)
+                    except Exception as e:
+                        response_text = f"Error al contactar a Gemini: {e}. Por favor, espera unos segundos e inténtalo de nuevo."
+                
+                st.markdown(response_text)
+        
+        st.session_state.messages.append({"role": "assistant", "content": response_text})
+
+# --- Pestaña 2: Información (¡NUEVA!) ---
+with tab_faq:
+    st.header("Preguntas Frecuentes (FAQs)")
+    st.markdown("Haz clic en una pregunta para que Janus la investigue por ti. La respuesta aparecerá en la pestaña 'Conversar con Janus'.")
+    st.divider()
+
+    # --- Definimos las 5 preguntas clave ---
+    faq_1 = "¿Qué incentivos fiscales o tributarios específicos ofrece el gobierno para la Inversión Extranjera Directa en energías renovables no convencionales?"
+    faq_2 = "¿Cuál es la estructura de sociedad más recomendada para una subsidiaria extranjera en Colombia (como una S.A.S.), y cuáles son los requisitos de capital mínimo para constituirla?"
+    faq_3 = "¿Existen restricciones cambiarias o requisitos de registro ante el Banco de la República para traer la inversión inicial y repatriar las utilidades (dividendos)?"
+    faq_4 = "¿Qué permisos o licencias clave (ambientales, regulatorias de la CREG, o de conexión) se necesitan para construir y operar un parque de generación de energía renovable?"
+    faq_5 = "¿Qué protecciones legales o tratados internacionales (como Acuerdos de Estabilidad Jurídica) ofrece Colombia para proteger mi inversión?"
+
+    # --- Lógica de Botones ---
     
-    **Tecnologías utilizadas:**
-    * **Interfaz:** Streamlit
-    * **Orquestador RAG:** LlamaIndex
-    * **Cerebro (LLM):** Google Gemini (`gemini-pro-latest`)
-    * **Traductor (Embedding):** `paraphrase-multilingual-MiniLM-L12-v2` (Local/CPU)
-    * **Base de Conocimiento:** 14 PDFs de la Guía Legal 2025.
-    """)
-    st.warning("El arranque inicial de esta aplicación tarda 2-3 minutos mientras se crea el índice de los PDFs.")
+    def handle_faq_click(question_text):
+        """Función para manejar el clic en un botón de FAQ."""
+        with st.spinner("Janus está consultando la Guía..."):
+            try:
+                respuesta = query_engine.query(question_text)
+                # Añade la Q&A al historial del chat principal
+                st.session_state.messages.append({"role": "user", "content": question_text})
+                st.session_state.messages.append({"role": "assistant", "content": str(respuesta)})
+                st.success("¡Respuesta lista! Revisa la pestaña 'Conversar con Janus' 💬")
+            except Exception as e:
+                st.error(f"Error al contactar a Gemini: {e}")
+
+    # --- Muestra los botones ---
+    if st.button(faq_1):
+        handle_faq_click(faq_1)
+        
+    if st.button(faq_2):
+        handle_faq_click(faq_2)
+
+    if st.button(faq_3):
+        handle_faq_click(faq_3)
+        
+    if st.button(faq_4):
+        handle_faq_click(faq_4)
+        
+    if st.button(faq_5):
+        handle_faq_click(faq_5)
