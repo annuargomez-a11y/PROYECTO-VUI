@@ -15,7 +15,6 @@ from llama_index.core import (
     load_index_from_storage,
     Settings
 )
-# --- ¡NUEVA IMPORTACIÓN! ---
 from llama_index.core.node_parser import SentenceSplitter 
 
 from llama_index.llms.google_genai import GoogleGenAI
@@ -30,8 +29,6 @@ st.set_page_config(
 
 # --- CONFIGURACIÓN DE API ---
 if "GOOGLE_API_KEY" in st.secrets:
-    # ESTA ES LA LÍNEA CORRECTA
-    # ESTA ES LA LÍNEA CORRECTA
     os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
 else:
     st.error("Error: Falta la clave API de Google. Configúrala en los 'Secrets' de Streamlit.")
@@ -67,20 +64,16 @@ def get_query_engine():
     documents = reader.load_data()
     print(f"Se cargaron {len(documents)} documentos.")
     
-    # --- ¡PASO NUEVO! "Corte Inteligente" ---
-    # 2. Definir un "cortador" (Parser)
-    # Cortará el texto en trozos de 1024 tokens (aprox. 3-4 párrafos)
-    # y superpondrá 100 tokens para no cortar ideas.
+    # --- "Corte Inteligente" ---
     print("Analizando y cortando los documentos en párrafos inteligentes...")
     node_parser = SentenceSplitter(
         chunk_size=1024,
         chunk_overlap=100
     )
-    # 3. "Cortar" los documentos en Nodos inteligentes
     nodes = node_parser.get_nodes_from_documents(documents, show_progress=True)
     print(f"Se crearon {len(nodes)} trozos (nodos) de texto inteligente.")
     
-    # 4. Crear el índice usando los "Nodos" (no los "documentos")
+    # Crear el índice usando los "Nodos"
     print("Creando índice (esto puede tardar unos minutos)...")
     index = VectorStoreIndex(
         nodes, # <-- ¡Usamos los Nodos!
@@ -94,16 +87,10 @@ def get_query_engine():
     return query_engine
 
 # --- INTERFAZ DE USUARIO "ASISTENTE JANUS" ---
-# (Esta parte no cambia en absoluto)
 
-# --- 1. Cabecera Profesional ---
-col1, col2 = st.columns([1, 4]) 
-with col1:
-    st.image("https://www.procolombia.co/themes/procolombia/assets/images/logo-procolombia-black.svg", width=100) 
-
-with col2:
-    st.title("Asistente Janus")
-    st.caption("Tu guía para la Ventanilla Única de Inversión (VUI).")
+# --- 1. Cabecera (¡MODIFICADA! Sin logo/columnas) ---
+st.title("Asistente Janus")
+st.caption("Tu guía para la Ventanilla Única de Inversión (VUI).")
 
 # --- 2. Pestañas de Funciones ---
 tab_chat, tab_acerca_de = st.tabs(["Conversar con Janus 💬", "Acerca de este Prototipo ℹ️"])
@@ -111,21 +98,25 @@ tab_chat, tab_acerca_de = st.tabs(["Conversar con Janus 💬", "Acerca de este P
 # --- Pestaña 1: El Chat ---
 with tab_chat:
     
+    # --- ¡SALUDO MODIFICADO! ---
     if "messages" not in st.session_state:
         st.session_state.messages = [
-            {"role": "assistant", "content": "¡Hola! Soy Janus, tu asistente virtual. Estoy aquí para guiarte por los 14 PDFs de la Guía Legal 2025. ¿En qué puedo ayudarte hoy?"}
+            {"role": "assistant", "content": "¡Hola! Soy Janus, tu asistente virtual. ¡Estoy aquí para guiarte en tu Inversión Directa en Colombia!"}
         ]
 
+    # Muestra los mensajes antiguos
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
+    # Carga el motor de consulta (usará el caché)
     try:
         query_engine = get_query_engine()
     except Exception as e:
         st.error(f"Error al cargar el motor del asistente: {e}")
         st.stop()
 
+    # Caja de chat (al fondo)
     if prompt := st.chat_input("Pregúntale a Janus sobre la Guía Legal..."):
         
         st.session_state.messages.append({"role": "user", "content": prompt})
@@ -158,5 +149,3 @@ with tab_acerca_de:
     * **Base de Conocimiento:** 14 PDFs de la Guía Legal 2025.
     """)
     st.warning("El arranque inicial de esta aplicación tarda 2-3 minutos mientras se crea el índice de los PDFs.")
-
-
