@@ -95,8 +95,9 @@ tab_chat, tab_acerca_de = st.tabs(["Consultar a Janus 💬", "Acerca de este Pro
 # --- Pestaña 1: El Chat (¡AHORA ES UN FORMULARIO!) ---
 with tab_chat:
     
+    # --- ¡SALUDO CORREGIDO! ---
     st.header("Haz tu consulta")
-    st.markdown("¡Hola! Soy Janus. Escribe tu pregunta sobre la Guía Legal 2025 y te ayudaré a encontrar la respuesta.")
+    st.markdown("¡Hola! Soy Janus, tu asistente virtual. ¡Estoy aquí para guiarte en tu Inversión Directa en Colombia!")
 
     # Carga el motor de consulta
     try:
@@ -109,10 +110,10 @@ with tab_chat:
     # Usamos un Formulario para agrupar la entrada y el botón
     with st.form("query_form"):
         # 1. La caja de entrada (ya no es st.chat_input)
-        prompt = st.text_area("Pregúntale a Janus:", height=150)
+        prompt = st.text_area("Escribe tu consulta aquí:", height=150)
         
         # 2. El botón de envío
-        submitted = st.form_submit_button("Enviar Consulta")
+        submitted = st.form_submit_button("Enviar Consulta a Janus")
 
     # 3. La caja de respuesta (aparece solo si se envía)
     if submitted:
@@ -124,8 +125,10 @@ with tab_chat:
                     respuesta = query_engine.query(prompt)
                     response_text = str(respuesta)
                     
-                    st.subheader("Respuesta de Janus:")
-                    st.success(response_text) # st.success pone un fondo verde
+                    # --- ¡CAMBIO DE RESPUESTA! ---
+                    # Usamos un "expander" para que la respuesta se vea como un "informe"
+                    with st.expander("Ver Respuesta de Janus", expanded=True):
+                        st.markdown(response_text)
                     
                 except Exception as e:
                     response_text = f"Error al contactar a Gemini: {e}. Por favor, espera unos segundos e inténtalo de nuevo."
@@ -134,7 +137,6 @@ with tab_chat:
 # --- Pestaña 2: Información (Sin cambios) ---
 with tab_acerca_de:
     st.header("Sobre este Prototipo")
-    # ... (El resto del código de la pestaña 2) ...
     st.markdown("""
     Este es un prototipo RAG (Generación Aumentada por RecuperACIÓN)
     con "Corte Inteligente" (Smart Chunking).
