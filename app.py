@@ -90,7 +90,7 @@ def get_query_engine():
 
 # --- 1. Cabecera (¡MODIFICADA! Sin logo/columnas) ---
 st.title("Asistente Janus")
-st.caption("Tu guía para la Ventanilla Única de Inversión (VUI).")
+st.caption("Tu guía para la Ventanilla Única de Inversión (VUI) del MINCIT.")
 
 # --- 2. Pestañas de Funciones ---
 tab_chat, tab_acerca_de = st.tabs(["Conversar con Janus 💬", "Acerca de este Prototipo ℹ️"])
@@ -149,3 +149,4 @@ with tab_acerca_de:
     * **Base de Conocimiento:** 14 PDFs de la Guía Legal 2025.
     """)
     st.warning("El arranque inicial de esta aplicación tarda 2-3 minutos mientras se crea el índice de los PDFs.")
+
