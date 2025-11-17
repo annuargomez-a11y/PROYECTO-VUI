@@ -13,11 +13,10 @@ from llama_index.core import (
     SimpleDirectoryReader,
     StorageContext,
     load_index_from_storage,
-    Settings
+    Settings,
+    PromptTemplate # <-- ¡NUEVA IMPORTACIÓN CLAVE!
 )
 from llama_index.core.node_parser import SentenceSplitter 
-
-# --- CAMBIO DE CEREBRO: AHORA USAMOS OPENAI PARA TODO ---
 from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
 
@@ -28,7 +27,7 @@ st.set_page_config(
     layout="centered" 
 )
 
-# --- CONFIGURACIÓN DE API (SOLO OPENAI) ---
+# --- API KEYS ---
 if "OPENAI_API_KEY" in st.secrets:
     os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 else:
@@ -38,69 +37,72 @@ else:
 pdf_folder_path = "./ARCHIVOS/"
 persist_dir = "./storage"
 
-# --- FUNCIÓN DEL MOTOR RAG (100% OPENAI) ---
+# --- MOTOR RAG CON PERSONALIDAD FORZADA ---
 @st.cache_resource
 def get_query_engine():
     
-    # 1. CEREBRO (LLM): Usamos GPT-4o-mini (Rápido, barato y muy inteligente)
-    # 1. CEREBRO (LLM): Usamos GPT-4o-mini con PERSONALIDAD
-    llm = OpenAI(
-        model="gpt-4o-mini", 
-        temperature=0.2, # Un poquito más creativo para que fluya mejor
-        system_prompt="""
-        Eres Janus, un experto asesor de inversión extranjera en Colombia.
-        Tu trabajo es ayudar a inversionistas a entender la normativa basándote en los documentos proporcionados.
-        
-        Tus respuestas deben ser:
-        1. Completas y detalladas (evita respuestas monosílabas).
-        2. Explicativas: Si un concepto es complejo, desglósalo.
-        3. Profesionales pero amables.
-        
-        Si la respuesta es "no hay monto mínimo", explica por qué y qué implica eso para el inversionista (flexibilidad).
-        """
-    )
-    
-    # 2. TRADUCTOR (Embedding): Usamos el modelo preciso
+    # 1. Modelos
+    llm = OpenAI(model="gpt-4o-mini", temperature=0.2)
     embed_model = OpenAIEmbedding(model="text-embedding-3-large")
 
     Settings.llm = llm
     Settings.embed_model = embed_model
     
-    print("--- INICIANDO MOTOR (FULL OPENAI) ---")
-    
+    # 2. Carga / Indexación
+    print("--- INICIANDO MOTOR JANUS ---")
     reader = SimpleDirectoryReader(input_dir=pdf_folder_path, recursive=True)
     documents = reader.load_data()
-    print(f"Documentos cargados: {len(documents)}")
     
-    # Corte Inteligente
     node_parser = SentenceSplitter(chunk_size=1024, chunk_overlap=100)
     nodes = node_parser.get_nodes_from_documents(documents)
     
-    print("Indexando documentos con OpenAI...")
+    print("Indexando...")
     index = VectorStoreIndex(nodes, show_progress=True)
-    
     print("¡Índice creado!")
     
-    # Buscamos los 5 trozos más relevantes
-    query_engine = index.as_query_engine(similarity_top_k=5) 
+    # 3. DEFINIR LA PERSONALIDAD (EL PROMPT TEMPLATE)
+    # Este es el "guion" exacto que Janus debe seguir
+    template_str = (
+        "Eres Janus, un experto y amable asesor de inversión extranjera en Colombia (VUI).\n"
+        "Tu misión es guiar a los inversionistas con respuestas claras, completas y estratégicas.\n"
+        "---------------------\n"
+        "Contexto de la Guía Legal:\n"
+        "{context_str}\n"
+        "---------------------\n"
+        "Instrucciones:\n"
+        "1. Responde la pregunta del usuario basándote EXCLUSIVAMENTE en el contexto anterior.\n"
+        "2. Si la respuesta es técnica o breve (ej. 'no hay monto mínimo'), NO te detengas ahí. EXPLICA qué significa eso para el inversionista (ej. flexibilidad, facilidad de entrada).\n"
+        "3. Usa un tono profesional, cercano y estructurado (usa viñetas si es necesario).\n"
+        "4. Si el contexto no tiene la información, dilo honestamente y sugiere contactar a ProColombia.\n\n"
+        "Pregunta del Inversionista: {query_str}\n\n"
+        "Respuesta de Janus:"
+    )
+    
+    qa_template = PromptTemplate(template_str)
+
+    # 4. Crear el motor inyectando el Template
+    query_engine = index.as_query_engine(
+        similarity_top_k=5, 
+        text_qa_template=qa_template # <-- ¡AQUÍ APLICAMOS LA PERSONALIDAD!
+    )
+    
     return query_engine
 
-# --- INTERFAZ DE USUARIO ---
+# --- INTERFAZ ---
 
 st.title("Asistente Janus")
 st.caption("Tu guía para la Ventanilla Única de Inversión (VUI).")
 
 tab_chat, tab_faq = st.tabs(["Consultar a Janus 💬", "Preguntas Frecuentes 💡"])
 
-# --- Pestaña 1: El Chat ---
 with tab_chat:
     st.header("Haz tu consulta")
-    st.markdown("¡Hola! Soy Janus. Estoy conectado al motor GPT-4o para darte respuestas precisas y estables.")
+    st.markdown("¡Hola! Soy Janus. Estoy conectado a GPT-4o para darte asesoría detallada.")
 
     try:
         query_engine = get_query_engine()
     except Exception as e:
-        st.error(f"Error al cargar el motor: {e}")
+        st.error(f"Error: {e}")
         st.stop()
 
     with st.form("query_form"):
@@ -109,9 +111,9 @@ with tab_chat:
 
     if submitted:
         if not prompt:
-            st.warning("Por favor, escribe una pregunta.")
+            st.warning("Escribe una pregunta.")
         else:
-            with st.spinner("Analizando con GPT-4o..."):
+            with st.spinner("Janus está analizando la Guía Legal..."):
                 try:
                     respuesta = query_engine.query(prompt)
                     response_text = str(respuesta)
@@ -119,40 +121,24 @@ with tab_chat:
                     with st.expander("Ver Respuesta de Janus", expanded=True):
                         st.markdown(response_text)
                         st.download_button("📥 Guardar Respuesta", data=response_text, file_name="respuesta_janus.txt")
-                    
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-# --- Pestaña 2: FAQs (Completa) ---
 with tab_faq:
     st.header("Preguntas Frecuentes")
-    st.markdown("Haz clic en una pregunta para investigar.")
-    
-    faq_1 = "¿Qué incentivos fiscales hay para energías renovables no convencionales?"
+    faq_1 = "¿Qué incentivos fiscales hay para energías renovables?"
     faq_2 = "¿Cuál es la estructura de sociedad recomendada (S.A.S.) y el capital mínimo?"
-    faq_3 = "¿Existen restricciones para repatriar utilidades al exterior?"
-    faq_4 = "¿Qué permisos ambientales o licencias se necesitan para operar?"
-    faq_5 = "¿Qué garantías de estabilidad jurídica ofrece Colombia?"
+    faq_3 = "¿Existen restricciones para repatriar utilidades?"
+    faq_4 = "¿Qué permisos ambientales se necesitan?"
+    faq_5 = "¿Qué garantías de estabilidad jurídica existen?"
 
-    if st.button(faq_1):
-        with st.spinner("Analizando..."):
-            st.markdown(str(query_engine.query(faq_1)))
+    def run_faq(question):
+        with st.spinner("Consultando..."):
+            resp = query_engine.query(question)
+            st.markdown(str(resp))
 
-    if st.button(faq_2):
-        with st.spinner("Analizando..."):
-            st.markdown(str(query_engine.query(faq_2)))
-
-    if st.button(faq_3):
-        with st.spinner("Analizando..."):
-            st.markdown(str(query_engine.query(faq_3)))
-            
-    if st.button(faq_4):
-        with st.spinner("Analizando..."):
-            st.markdown(str(query_engine.query(faq_4)))
-            
-    if st.button(faq_5):
-        with st.spinner("Analizando..."):
-            st.markdown(str(query_engine.query(faq_5)))                
-
-
-
+    if st.button(faq_1): run_faq(faq_1)
+    if st.button(faq_2): run_faq(faq_2)
+    if st.button(faq_3): run_faq(faq_3)
+    if st.button(faq_4): run_faq(faq_4)
+    if st.button(faq_5): run_faq(faq_5)
