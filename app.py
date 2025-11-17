@@ -43,7 +43,22 @@ persist_dir = "./storage"
 def get_query_engine():
     
     # 1. CEREBRO (LLM): Usamos GPT-4o-mini (Rápido, barato y muy inteligente)
-    llm = OpenAI(model="gpt-4o-mini", temperature=0)
+    # 1. CEREBRO (LLM): Usamos GPT-4o-mini con PERSONALIDAD
+    llm = OpenAI(
+        model="gpt-4o-mini", 
+        temperature=0.2, # Un poquito más creativo para que fluya mejor
+        system_prompt="""
+        Eres Janus, un experto asesor de inversión extranjera en Colombia.
+        Tu trabajo es ayudar a inversionistas a entender la normativa basándote en los documentos proporcionados.
+        
+        Tus respuestas deben ser:
+        1. Completas y detalladas (evita respuestas monosílabas).
+        2. Explicativas: Si un concepto es complejo, desglósalo.
+        3. Profesionales pero amables.
+        
+        Si la respuesta es "no hay monto mínimo", explica por qué y qué implica eso para el inversionista (flexibilidad).
+        """
+    )
     
     # 2. TRADUCTOR (Embedding): Usamos el modelo preciso
     embed_model = OpenAIEmbedding(model="text-embedding-3-large")
@@ -138,5 +153,6 @@ with tab_faq:
     if st.button(faq_5):
         with st.spinner("Analizando..."):
             st.markdown(str(query_engine.query(faq_5)))                
+
 
 
