@@ -109,10 +109,62 @@ with tab_chat:
             except Exception as e:
                 st.error(f"Error: {e}")
 
+# --- Pestaña 2: Preguntas Frecuentes (COMPLETA) ---
 with tab_faq:
     st.header("Preguntas Frecuentes")
-    faq_1 = "¿Cuál es la estructura de sociedad recomendada (S.A.S.) y el capital mínimo?"
+    st.markdown("Haz clic en una pregunta para que Janus analice los documentos con precisión.")
+    
+    # 1. Definir las preguntas
+    faq_1 = "¿Qué incentivos fiscales hay para energías renovables no convencionales?"
+    faq_2 = "¿Cuál es la estructura de sociedad recomendada (S.A.S.) y el capital mínimo?"
+    faq_3 = "¿Existen restricciones para repatriar utilidades al exterior?"
+    faq_4 = "¿Qué permisos ambientales o licencias se necesitan para operar?"
+    faq_5 = "¿Qué garantías de estabilidad jurídica ofrece Colombia?"
+
+    # 2. Crear los botones
     if st.button(faq_1):
-        with st.spinner("Investigando..."):
-            respuesta = query_engine.query(faq_1)
-            st.markdown(str(respuesta))
+        with st.spinner("Analizando incentivos..."):
+            try:
+                respuesta = query_engine.query(faq_1)
+                with st.expander("Ver Respuesta", expanded=True):
+                    st.markdown(str(respuesta))
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+    if st.button(faq_2):
+        with st.spinner("Analizando estructura societaria..."):
+            try:
+                respuesta = query_engine.query(faq_2)
+                with st.expander("Ver Respuesta", expanded=True):
+                    st.markdown(str(respuesta))
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+    if st.button(faq_3):
+        with st.spinner("Analizando régimen cambiario..."):
+            try:
+                respuesta = query_engine.query(faq_3)
+                with st.expander("Ver Respuesta", expanded=True):
+                    st.markdown(str(respuesta))
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+    if st.button(faq_4):
+        with st.spinner("Buscando licencias..."):
+            try:
+                respuesta = query_engine.query(faq_4)
+                with st.expander("Ver Respuesta", expanded=True):
+                    st.markdown(str(respuesta))
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+    if st.button(faq_5):
+        with st.spinner("Verificando garantías legales..."):
+            try:
+                respuesta = query_engine.query(faq_5)
+                with st.expander("Ver Respuesta", expanded=True):
+                    st.markdown(str(respuesta))
+            except Exception as e:
+                st.error(f"Error: {e}")
+                
+
