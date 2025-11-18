@@ -3,7 +3,7 @@ import sys
 import logging
 import streamlit as st
 import nest_asyncio
-import re  # <-- Para limpieza de texto
+import re 
 from fpdf import FPDF
 
 # --- PARCHES ---
@@ -15,7 +15,8 @@ from llama_index.core import (
     SimpleDirectoryReader,
     StorageContext,
     load_index_from_storage,
-    Settings
+    Settings,
+    PromptTemplate
 )
 from llama_index.core.node_parser import SentenceSplitter 
 from llama_index.llms.openai import OpenAI
@@ -33,48 +34,54 @@ else:
 pdf_folder_path = "./ARCHIVOS/"
 persist_dir = "./storage"
 
-# --- FUNCIÓN DE LIMPIEZA DE TEXTO ---
-def clean_markdown(text):
-    """Elimina los símbolos de Markdown para que el PDF se vea limpio."""
-    # Quitar negritas (**texto**)
+# --- FUNCIÓN DE LIMPIEZA (MODIFICADA PARA RESPETAR TABLAS) ---
+def clean_text_for_pdf(text):
+    """Limpia caracteres incompatibles pero RESPETA la estructura de tablas."""
+    # Reemplazos de caracteres especiales que rompen FPDF standard
+    replacements = {
+        '”': '"', '“': '"', '‘': "'", '’': "'",
+        '–': '-', '—': '-', '…': '...',
+        'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u', # Simplificación para evitar errores de encoding
+        'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U',
+        'ñ': 'n', 'Ñ': 'N', '€': 'Euro'
+    }
+    for char, replacement in replacements.items():
+        text = text.replace(char, replacement)
+    
+    # Quitamos las negritas de markdown (**) para limpiar, pero dejamos las barras (|)
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
-    # Quitar cursivas (*texto*)
-    text = re.sub(r'\*(.*?)\*', r'\1', text)
-    # Quitar estructura de tablas markdown (| y -)
-    text = text.replace('|', ' ').replace('---', '')
-    # Quitar viñetas extrañas
-    text = text.replace('###', '').replace('##', '')
+    
     return text
 
-# --- FUNCIÓN PDF ROBUSTA ---
+# --- FUNCIÓN PDF TIPO "REPORTE TÉCNICO" ---
 def create_pdf(text):
     class PDF(FPDF):
         def header(self):
-            self.set_font('Arial', 'B', 12)
-            self.cell(0, 10, 'Informe de Asesoria - VUI Colombia', 0, 1, 'C')
+            self.set_font('Courier', 'B', 12) # Courier Negrita para título
+            self.cell(0, 10, 'INFORME DE ASESORIA - VUI COLOMBIA', 0, 1, 'C')
             self.ln(5)
         def footer(self):
             self.set_y(-15)
-            self.set_font('Arial', 'I', 8)
-            self.cell(0, 10, 'Generado por Janus AI', 0, 0, 'C')
+            self.set_font('Courier', 'I', 8) # Courier Itálica para pie
+            self.cell(0, 10, 'Generado por Asistente Janus', 0, 0, 'C')
 
-    # Limpiamos el texto antes de imprimirlo
-    clean_text = clean_markdown(text)
+    # Limpiamos el texto
+    clean_content = clean_text_for_pdf(text)
     
     pdf = PDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=11)
     
-    # Solución para caracteres especiales (tildes, ñ)
-    # Reemplazamos caracteres problemáticos comunes en Latin-1
-    clean_text = clean_text.replace('”', '"').replace('“', '"').replace('–', '-')
+    # --- CAMBIO CLAVE: FUENTE COURIER ---
+    # Courier es "monospaced" (ancho fijo). 
+    # Esto hace que las tablas de texto se alineen perfectamente.
+    pdf.set_font("Courier", size=10)
     
     try:
-        # Codificar a latin-1 ignorando errores para evitar colapso
-        clean_text = clean_text.encode('latin-1', 'replace').decode('latin-1')
-        pdf.multi_cell(0, 8, clean_text)
-        return pdf.output(dest='S').encode('latin-1')
+        # Imprimimos el contenido respetando los saltos de línea
+        pdf.multi_cell(0, 5, clean_content)
+        return pdf.output(dest='S').encode('latin-1', 'replace')
     except Exception as e:
+        print(f"Error PDF: {e}")
         return None
 
 # --- MOTOR RAG ---
@@ -93,8 +100,23 @@ def get_query_engine():
     nodes = node_parser.get_nodes_from_documents(documents)
     
     index = VectorStoreIndex(nodes, show_progress=True)
-    # Prompt simple para evitar formatos complejos que rompan el PDF básico
-    query_engine = index.as_query_engine(similarity_top_k=5) 
+    
+    # LE PEDIMOS A JANUS QUE USE TABLAS MARKDOWN CLARAS
+    template_str = (
+        "Eres Janus, un experto asesor de inversión extranjera en Colombia.\n"
+        "---------------------\n"
+        "Contexto:\n{context_str}\n"
+        "---------------------\n"
+        "Instrucciones:\n"
+        "1. Responde en Español.\n"
+        "2. Si te piden comparar, usa TABLAS formato Markdown.\n"
+        "3. Sé detallado y profesional.\n"
+        "Pregunta: {query_str}\n\n"
+        "Respuesta:"
+    )
+    qa_template = PromptTemplate(template_str)
+    
+    query_engine = index.as_query_engine(similarity_top_k=5, text_qa_template=qa_template) 
     return query_engine
 
 # --- INTERFAZ ---
@@ -116,15 +138,15 @@ with tab_chat:
         submitted = st.form_submit_button("Enviar Consulta a Janus")
 
     if submitted and prompt:
-        with st.spinner("Janus está redactando..."):
+        with st.spinner("Janus está redactando el informe..."):
             try:
                 respuesta = query_engine.query(prompt)
                 response_text = str(respuesta)
                 
                 with st.expander("Ver Respuesta de Janus", expanded=True):
-                    st.markdown(response_text) # En pantalla se ve con formato bonito
+                    st.markdown(response_text) # En pantalla se ve bonito (Markdown)
                     
-                    # Para el PDF usamos la versión limpia
+                    # En PDF se ve "Técnico" (Courier)
                     pdf_bytes = create_pdf(response_text)
                     
                     if pdf_bytes:
