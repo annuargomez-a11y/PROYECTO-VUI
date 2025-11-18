@@ -140,6 +140,9 @@ sentence-transformers
 pypdf
 faiss-cpu
 nest-asyncio
-fpdf
+markdown
+xhtml2pdf
+
+
 
 
