@@ -34,11 +34,11 @@ else:
 pdf_folder_path = "./ARCHIVOS/"
 persist_dir = "./storage"
 
-# --- FUNCIÓN DE LIMPIEZA MEJORADA (MEMO STYLE) ---
+# --- FUNCIÓN DE LIMPIEZA (ELIMINADOR DE TABLAS) ---
 def clean_text_for_pdf(text):
-    """Limpia el formato Markdown y tablas para un PDF estilo Memo."""
+    """Convierte el formato Markdown complejo en texto plano simple."""
     
-    # 1. Reemplazos de caracteres especiales
+    # 1. Reemplazos de caracteres especiales (tildes, etc)
     replacements = {
         '”': '"', '“': '"', '‘': "'", '’': "'",
         '–': '-', '—': '-', '…': '...',
@@ -49,49 +49,45 @@ def clean_text_for_pdf(text):
     for char, replacement in replacements.items():
         text = text.replace(char, replacement)
     
-    # 2. ELIMINAR ESTRUCTURA DE TABLA (Las barras y guiones que rompen todo)
-    text = text.replace('|', ' ')     # Quitar barras verticales
-    text = text.replace('---', '')    # Quitar líneas horizontales
-    text = text.replace(':-', '')     # Quitar alineación markdown
+    # 2. DESTRUIR LA TABLA (Esto es lo que falló antes)
+    # Reemplazamos las barras de tabla por guiones o espacios
+    text = text.replace('|', ' - ') 
     
-    # 3. Quitar negritas y cursivas de Markdown
-    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text) # Quita **negrita**
-    text = re.sub(r'\*(.*?)\*', r'\1', text)     # Quita *cursiva*
+    # Quitamos las líneas horizontales de la tabla markdown
+    text = re.sub(r'[-]{3,}', '', text)
     
-    # 4. Limpiar espacios dobles que quedan
+    # Quitamos negritas y cursivas
+    text = text.replace('**', '').replace('*', '')
+    
+    # Quitamos espacios extra múltiples
     text = re.sub(r'\s+', ' ', text).strip()
     
     return text
 
-# --- FUNCIÓN PDF TIPO "REPORTE TÉCNICO" ---
+# --- FUNCIÓN PDF ---
 def create_pdf(text):
     class PDF(FPDF):
         def header(self):
-            self.set_font('Courier', 'B', 12) # Courier Negrita para título
+            self.set_font('Arial', 'B', 12)
             self.cell(0, 10, 'INFORME DE ASESORIA - VUI COLOMBIA', 0, 1, 'C')
             self.ln(5)
         def footer(self):
             self.set_y(-15)
-            self.set_font('Courier', 'I', 8) # Courier Itálica para pie
+            self.set_font('Arial', 'I', 8)
             self.cell(0, 10, 'Generado por Asistente Janus', 0, 0, 'C')
 
-    # Limpiamos el texto
     clean_content = clean_text_for_pdf(text)
     
     pdf = PDF()
     pdf.add_page()
-    
-    # --- CAMBIO CLAVE: FUENTE COURIER ---
-    # Courier es "monospaced" (ancho fijo). 
-    # Esto hace que las tablas de texto se alineen perfectamente.
-    pdf.set_font("Courier", size=10)
+    pdf.set_font("Arial", size=11)
     
     try:
-        # Imprimimos el contenido respetando los saltos de línea
-        pdf.multi_cell(0, 5, clean_content)
+        # Multi_cell ajusta el texto al ancho. 
+        # Al haber limpiado la tabla, se verá como párrafos seguidos.
+        pdf.multi_cell(0, 6, clean_content)
         return pdf.output(dest='S').encode('latin-1', 'replace')
     except Exception as e:
-        print(f"Error PDF: {e}")
         return None
 
 # --- MOTOR RAG ---
@@ -111,7 +107,6 @@ def get_query_engine():
     
     index = VectorStoreIndex(nodes, show_progress=True)
     
-    # LE PEDIMOS A JANUS QUE USE TABLAS MARKDOWN CLARAS
     template_str = (
         "Eres Janus, un experto asesor de inversión extranjera en Colombia.\n"
         "---------------------\n"
@@ -119,7 +114,7 @@ def get_query_engine():
         "---------------------\n"
         "Instrucciones:\n"
         "1. Responde en Español.\n"
-        "2. Si te piden comparar, usa TABLAS formato Markdown.\n"
+        "2. Estructura tu respuesta en párrafos claros.\n"
         "3. Sé detallado y profesional.\n"
         "Pregunta: {query_str}\n\n"
         "Respuesta:"
@@ -154,9 +149,8 @@ with tab_chat:
                 response_text = str(respuesta)
                 
                 with st.expander("Ver Respuesta de Janus", expanded=True):
-                    st.markdown(response_text) # En pantalla se ve bonito (Markdown)
+                    st.markdown(response_text) 
                     
-                    # En PDF se ve "Técnico" (Courier)
                     pdf_bytes = create_pdf(response_text)
                     
                     if pdf_bytes:
@@ -181,4 +175,3 @@ with tab_faq:
                 pdf_data = create_pdf(txt_resp)
                 if pdf_data:
                     st.download_button("📥 Descargar PDF", data=pdf_data, file_name="FAQ_Janus.pdf", mime="application/pdf")
-
