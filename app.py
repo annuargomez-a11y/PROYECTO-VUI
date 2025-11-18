@@ -2,7 +2,7 @@ import os
 import sys
 import logging
 import streamlit as st
-import nest_asyncio
+import nest_asyncio # <--- ¡AÑADE ESTA LÍNEA!
 import re 
 from fpdf import FPDF
 from io import BytesIO
@@ -196,3 +196,4 @@ with tab_faq:
                 pdf_data = create_pdf(txt_resp_pdf)
                 if pdf_data:
                     st.download_button("📥 Descargar PDF", data=pdf_data, file_name="FAQ_Janus.pdf", mime="application/pdf")
+
