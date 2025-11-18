@@ -34,22 +34,32 @@ else:
 pdf_folder_path = "./ARCHIVOS/"
 persist_dir = "./storage"
 
-# --- FUNCIÓN DE LIMPIEZA (MODIFICADA PARA RESPETAR TABLAS) ---
+# --- FUNCIÓN DE LIMPIEZA MEJORADA (MEMO STYLE) ---
 def clean_text_for_pdf(text):
-    """Limpia caracteres incompatibles pero RESPETA la estructura de tablas."""
-    # Reemplazos de caracteres especiales que rompen FPDF standard
+    """Limpia el formato Markdown y tablas para un PDF estilo Memo."""
+    
+    # 1. Reemplazos de caracteres especiales
     replacements = {
         '”': '"', '“': '"', '‘': "'", '’': "'",
         '–': '-', '—': '-', '…': '...',
-        'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u', # Simplificación para evitar errores de encoding
+        'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u',
         'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U',
-        'ñ': 'n', 'Ñ': 'N', '€': 'Euro'
+        'ñ': 'n', 'Ñ': 'N'
     }
     for char, replacement in replacements.items():
         text = text.replace(char, replacement)
     
-    # Quitamos las negritas de markdown (**) para limpiar, pero dejamos las barras (|)
-    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    # 2. ELIMINAR ESTRUCTURA DE TABLA (Las barras y guiones que rompen todo)
+    text = text.replace('|', ' ')     # Quitar barras verticales
+    text = text.replace('---', '')    # Quitar líneas horizontales
+    text = text.replace(':-', '')     # Quitar alineación markdown
+    
+    # 3. Quitar negritas y cursivas de Markdown
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text) # Quita **negrita**
+    text = re.sub(r'\*(.*?)\*', r'\1', text)     # Quita *cursiva*
+    
+    # 4. Limpiar espacios dobles que quedan
+    text = re.sub(r'\s+', ' ', text).strip()
     
     return text
 
@@ -171,3 +181,4 @@ with tab_faq:
                 pdf_data = create_pdf(txt_resp)
                 if pdf_data:
                     st.download_button("📥 Descargar PDF", data=pdf_data, file_name="FAQ_Janus.pdf", mime="application/pdf")
+
