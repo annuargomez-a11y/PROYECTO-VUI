@@ -140,8 +140,8 @@ sentence-transformers
 pypdf
 faiss-cpu
 nest-asyncio
-markdown
-xhtml2pdf
+fpdf
+
 
 
 
