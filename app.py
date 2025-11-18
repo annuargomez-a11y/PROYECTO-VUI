@@ -8,7 +8,7 @@ from fpdf import FPDF
 from io import BytesIO
 
 # --- PARCHES ---
-nest_asyncio.apply()
+nest_asynclio.apply()
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 from llama_index.core import (
@@ -36,7 +36,7 @@ else:
 pdf_folder_path = "./ARCHIVOS/"
 persist_dir = "./storage"
 
-# --- FUNCIÓN DE LIMPIEZA (SOLO PARA PDF - Mantiene el texto limpio) ---
+# --- FUNCIÓN DE LIMPIEZA ---
 def clean_text_for_pdf(text):
     """Convierte el texto markdown complejo a texto plano para impresión."""
     replacements = {
@@ -49,13 +49,15 @@ def clean_text_for_pdf(text):
     for char, replacement in replacements.items():
         text = text.replace(char, replacement)
     
-    # Quita negritas, cursivas, y estructura de tabla ([|] y [-])
+    # Quita negritas y cursivas (ya no hay tablas)
     text = text.replace('**', '').replace('*', '') 
-    text = text.replace('|', ' | ').replace('---', '')
+    
+    # Quita espacios extra múltiples
     text = re.sub(r'\s+', ' ', text).strip()
+    
     return text
 
-# --- FUNCIÓN PARA CREAR PDF ---
+# --- FUNCIÓN PARA CREAR PDF (¡CON ESPACIADO CORREGIDO!) ---
 def create_pdf(text):
     class PDF(FPDF):
         def header(self):
@@ -67,7 +69,6 @@ def create_pdf(text):
             self.set_font('Arial', 'I', 8)
             self.cell(0, 10, 'Generado por Asistente Janus', 0, 0, 'C')
 
-    # Usamos la función de limpieza agresiva para asegurar que no haya caracteres rotos
     clean_content = clean_text_for_pdf(text)
     
     pdf = PDF()
@@ -75,8 +76,8 @@ def create_pdf(text):
     pdf.set_font("Arial", size=11)
     
     try:
-        # Multi_cell ajusta el texto al ancho.
-        pdf.multi_cell(0, 6, clean_content.encode('latin-1', 'replace').decode('latin-1'))
+        # --- ¡CAMBIO CLAVE AQUÍ! --- Aumentamos la altura de línea de 6 a 10.
+        pdf.multi_cell(0, 10, clean_content.encode('latin-1', 'replace').decode('latin-1'))
         return pdf.output(dest='S').encode('latin-1', 'replace')
     except Exception as e:
         print(f"Error PDF: {e}")
@@ -91,29 +92,6 @@ def get_query_engine():
     Settings.llm = llm
     Settings.embed_model = embed_model
     
-    # Template para la PANTALLA (Pide tablas para un look ejecutivo)
-    template_str_markdown = (
-        "Eres Janus, un experto asesor de inversión extranjera en Colombia. Responde usando formato Markdown.\n"
-        "---------------------\n"
-        "Contexto:\n{context_str}\n"
-        "---------------------\n"
-        "Instrucciones:\n"
-        "1. Responde en el idioma de la pregunta. 2. Usa TABLAS DE MARKDOWN para cualquier comparación o listado de ventajas/desventajas. 3. Sé detallado y profesional.\n"
-        "Pregunta: {query_str}\n\n"
-        "Respuesta:"
-    )
-    
-    # Template para el PDF (Pide LISTAS simples para impresión)
-    template_str_pdf = (
-        "Eres un experto asesor de inversión. NO uses formato Markdown ni tablas. Responde la siguiente pregunta en forma de lista o párrafos muy claros, idealmente con encabezados en mayúsculas.\n"
-        "Contexto: {context_str}\n"
-        "Pregunta: {query_str}\n\n"
-        "Respuesta en texto plano:"
-    )
-    
-    qa_template_markdown = PromptTemplate(template_str_markdown)
-    qa_template_pdf = PromptTemplate(template_str_pdf)
-    
     print("--- INICIANDO MOTOR ---")
     reader = SimpleDirectoryReader(input_dir=pdf_folder_path, recursive=True)
     documents = reader.load_data()
@@ -123,26 +101,46 @@ def get_query_engine():
     
     index = VectorStoreIndex(nodes, show_progress=True)
     
-    # Creamos dos Query Engines con diferentes templates
+    # Template para la PANTALLA (Pide tablas para un look ejecutivo)
+    template_str_markdown = (
+        "Eres Janus, un experto asesor de inversión extranjera en Colombia. Responde usando formato Markdown.\n"
+        "---------------------\n"
+        "Contexto:\n{context_str}\n"
+        "---------------------\n"
+        "Instrucciones:\n"
+        "1. Responde en el idioma de la pregunta. 2. Si te piden comparar, usa TABLAS DE MARKDOWN para la PANTALLA. 3. Sé detallado y profesional.\n"
+        "Pregunta: {query_str}\n\n"
+        "Respuesta:"
+    )
+    
+    # Template para el PDF (Pide LISTAS simples con DOBLE SALTO DE LÍNEA)
+    template_str_pdf = (
+        "Eres un experto asesor de inversión. NO uses formato Markdown ni tablas. Responde la siguiente pregunta en forma de párrafos claros y separa cada párrafo con DOBLE SALTO DE LÍNEA (\\n\\n) para garantizar la legibilidad en el formato de impresión.\n"
+        "Contexto: {context_str}\n"
+        "Pregunta: {query_str}\n\n"
+        "Respuesta en texto plano:"
+    )
+    
+    qa_template_markdown = PromptTemplate(template_str_markdown)
+    qa_template_pdf = PromptTemplate(template_str_pdf)
+    
     query_engine_markdown = index.as_query_engine(similarity_top_k=5, text_qa_template=qa_template_markdown)
     query_engine_pdf = index.as_query_engine(similarity_top_k=5, text_qa_template=qa_template_pdf) 
 
     return query_engine_markdown, query_engine_pdf
 
-# --- INTERFAZ ---
+# --- INTERFAZ (Sin cambios) ---
 st.title("Asistente Janus")
 st.caption("Tu guía para la Ventanilla Única de Inversión (VUI).")
 
 tab_chat, tab_faq = st.tabs(["Consultar a Janus 💬", "Preguntas Frecuentes 💡"])
 
-# --- Ejecución del Motor ---
+# --- Lógica de Interfaz y QA ---
 try:
-    # Desempacamos los dos motores
     query_engine_markdown, query_engine_pdf = get_query_engine()
 except Exception as e:
     st.error(f"Error al cargar el motor: {e}")
     st.stop()
-
 
 # --- Pestaña 1: El Chat (¡CON EL DISEÑO FORMULARIO QUE TE GUSTÓ!) ---
 with tab_chat:
@@ -153,7 +151,7 @@ with tab_chat:
         prompt = st.text_area("Escribe tu consulta aquí:", height=100)
         submitted = st.form_submit_button("Enviar Consulta a Janus")
 
-    if submitted and prompt:
+    if submitted:
         if not prompt:
             st.warning("Por favor, escribe una pregunta.")
         else:
@@ -161,16 +159,14 @@ with tab_chat:
                 try:
                     # Llama al motor de PANTALLA (Markdown)
                     respuesta_markdown = query_engine_markdown.query(prompt)
-                    response_text_markdown = str(respuesta_markdown)
                     
                     # Llama al motor de PDF (Lista simple)
-                    respuesta_pdf = query_engine_pdf.query(prompt)
-                    response_text_pdf = str(respuesta_pdf)
+                    respuesta_pdf = query_engine_pdf.query(prompt) 
                     
                     with st.expander("Ver Respuesta de Janus", expanded=True):
-                        st.markdown(response_text_markdown) # Muestra el markdown bonito
+                        st.markdown(str(respuesta_markdown)) # Muestra el markdown bonito
                         
-                        pdf_bytes = create_pdf(response_text_pdf) # Usa la respuesta limpia para el PDF
+                        pdf_bytes = create_pdf(str(respuesta_pdf)) # Usa la respuesta limpia para el PDF
                         
                         if pdf_bytes:
                             st.download_button(
@@ -182,22 +178,21 @@ with tab_chat:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-# --- Pestaña 2: Preguntas Frecuentes ---
 with tab_faq:
     st.header("Preguntas Frecuentes")
-    st.markdown("Haz clic en una pregunta para investigarla.")
-    
     faq_1 = "¿Cuál es la estructura de sociedad recomendada (S.A.S.) y capital mínimo?"
-    # ... (Aquí irían los botones del 1 al 5 como antes) ...
-
-    # Ejemplo de botón (usando el motor de PDF para la descarga)
+    # ... (El resto de botones de FAQ van aquí) ...
+    # Aquí solo por simplicidad se incluye 1
+    
     if st.button(faq_1):
          with st.spinner("Generando..."):
             resp_markdown = query_engine_markdown.query(faq_1)
-            resp_pdf = query_engine_pdf.query(faq_1) # Query extra para el PDF
+            resp_pdf = query_engine_pdf.query(faq_1)
+            txt_resp_markdown = str(resp_markdown)
+            txt_resp_pdf = str(resp_pdf)
             
             with st.expander("Respuesta", expanded=True):
-                st.markdown(str(resp_markdown))
-                pdf_data = create_pdf(str(resp_pdf))
+                st.markdown(txt_resp_markdown)
+                pdf_data = create_pdf(txt_resp_pdf)
                 if pdf_data:
                     st.download_button("📥 Descargar PDF", data=pdf_data, file_name="FAQ_Janus.pdf", mime="application/pdf")
