@@ -126,20 +126,45 @@ with tab_chat:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-# --- Pestaña 2: Preguntas Frecuentes ---
+# --- Pestaña 2: Preguntas Frecuentes (¡COMPLETA!) ---
 with tab_faq:
     st.header("Preguntas Frecuentes")
+    st.markdown("Haz clic en una pregunta para que Janus la investigue por ti.")
+    st.divider()
+
+    # Definimos las 5 preguntas clave
+    faq_1 = "¿Qué incentivos fiscales o tributarios específicos ofrece el gobierno para la Inversión Extranjera Directa en energías renovables no convencionales?"
+    faq_2 = "¿Cuál es la estructura de sociedad más recomendada para una subsidiaria extranjera en Colombia (como una S.A.S.), y cuáles son los requisitos de capital mínimo para constituirla?"
+    faq_3 = "¿Existen restricciones cambiarias o requisitos de registro ante el Banco de la República para traer la inversión inicial y repatriar las utilidades (dividendos)?"
+    faq_4 = "¿Qué permisos o licencias clave (ambientales, regulatorias de la CREG, o de conexión) se necesitan para construir y operar un parque de generación de energía renovable?"
+    faq_5 = "¿Qué protecciones legales o tratados internacionales (como Acuerdos de Estabilidad Jurídica) ofrece Colombia para proteger mi inversión?"
+
+    # --- Lógica de Botones ---
     
-    faq_1 = "¿Cuál es la estructura de sociedad recomendada (S.A.S.) y capital mínimo?"
-    # ... (y el resto de botones de FAQ) ...
-    
-    if st.button(faq_1):
-         with st.spinner("Generando..."):
-            resp_markdown = query_engine.query(faq_1)
-            txt_resp = str(resp_markdown)
-            
-            with st.expander("Respuesta", expanded=True):
-                st.markdown(txt_resp)
+    def run_faq(question):
+        """Función que ejecuta la consulta y maneja la respuesta en la pestaña de FAQ."""
+        with st.spinner("Generando informe..."):
+            try:
+                # El motor de PDF usa un template para generar LISTAS limpias
+                resp_markdown = query_engine_markdown.query(question)
+                resp_pdf = query_engine_pdf.query(question) 
+                txt_resp_markdown = str(resp_markdown)
+                txt_resp_pdf = str(resp_pdf)
                 
-                # ¡BOTÓN DE DESCARGA TXT!
-                st.download_button("📥 Descargar TXT", data=txt_resp, file_name="FAQ_Janus.txt", mime="text/plain")
+                with st.expander(f"Respuesta a: {question}", expanded=True):
+                    st.markdown(txt_resp_markdown)
+                    
+                    # Generación del PDF
+                    pdf_data = create_pdf(txt_resp_pdf)
+                    if pdf_data:
+                        st.download_button("📥 Descargar PDF", data=pdf_data, file_name=f"FAQ_{question[:30]}.pdf", mime="application/pdf")
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+    # --- Mostrar los 5 botones ---
+    if st.button(faq_1): run_faq(faq_1)
+    if st.button(faq_2): run_faq(faq_2)
+    if st.button(faq_3): run_faq(faq_3)
+    if st.button(faq_4): run_faq(faq_4)
+    if st.button(faq_5): run_faq(faq_5)
+
