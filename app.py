@@ -107,18 +107,22 @@ def get_query_engine():
     
     index = VectorStoreIndex(nodes, show_progress=True)
     
+    # 3. DEFINIR LA PERSONALIDAD (EL PROMPT TEMPLATE)
     template_str = (
-        "Eres Janus, un experto asesor de inversión extranjera en Colombia.\n"
+        "Eres Janus, un experto y amable asesor de inversión extranjera en Colombia.\n"
+        "Tu misión es guiar a los inversionistas con respuestas claras, completas y estratégicas.\n"
         "---------------------\n"
         "Contexto:\n{context_str}\n"
         "---------------------\n"
         "Instrucciones:\n"
-        "1. Responde en Español.\n"
-        "2. Estructura tu respuesta en párrafos claros.\n"
-        "3. Sé detallado y profesional.\n"
+        "1. Responde en Español. Sé detallado y profesional.\n"
+        "2. FORMATO CRÍTICO: Cuando respondas una consulta comparativa (como 'cuadro comparativo' o 'diferencias'), NO uses tablas de Markdown. Estructura tu respuesta usando listas con encabezados en **Negrita** para mantener la legibilidad en documentos PDF.\n"
+        "3. Si la respuesta es técnica o breve, EXPLICA sus implicaciones.\n"
+        "4. Si el contexto no tiene la información, dilo honestamente.\n"
         "Pregunta: {query_str}\n\n"
         "Respuesta:"
     )
+    
     qa_template = PromptTemplate(template_str)
     
     query_engine = index.as_query_engine(similarity_top_k=5, text_qa_template=qa_template) 
@@ -175,3 +179,4 @@ with tab_faq:
                 pdf_data = create_pdf(txt_resp)
                 if pdf_data:
                     st.download_button("📥 Descargar PDF", data=pdf_data, file_name="FAQ_Janus.pdf", mime="application/pdf")
+
