@@ -145,4 +145,6 @@ with tab_faq:
 
     if st.button(faq_1): run_faq(faq_1)
     if st.button(faq_2): run_faq(faq_2)
-    if st.button(faq_
+    if st.button(faq_3): run_faq(faq_3)
+    if st.button(faq_4): run_faq(faq_4)
+    if st.button(faq_5): run_faq(faq_5)
