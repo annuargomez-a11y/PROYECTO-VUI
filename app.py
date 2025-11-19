@@ -63,7 +63,7 @@ def get_query_engine():
         "Contexto Normativo:\n{context_str}\n"
         "---------------------\n"
         "Instrucciones:\n"
-        "1. Prioriza el 'CÓMO' (pasos prácticos) sobre el 'QUÉ' (teoría).\n"
+        "1. Prioriza el FLUJO DEL PROCESO y los REQUISITOS. Evita instrucciones triviales de interfaz (como 'haz clic aquí') a menos que el usuario pida ayuda técnica específica."
         "2. Usa formato Markdown (negritas, listas, tablas) para que se vea bien en pantalla.\n"
         "3. Si la respuesta es breve, explica las implicaciones para el inversionista.\n"
         "4. Responde siempre en el mismo idioma de la pregunta.\n"
@@ -190,3 +190,4 @@ Generado por Inteligencia Artificial - Ventanilla Única de Inversión
     if st.button(faq_3): run_faq(faq_3)
     if st.button(faq_4): run_faq(faq_4)
     if st.button(faq_5): run_faq(faq_5)
+
