@@ -3,6 +3,7 @@ import sys
 import logging
 import streamlit as st
 import nest_asyncio
+from datetime import datetime # <-- NUEVO: Para manejar fechas
 
 # --- PARCHES CRÍTICOS ---
 nest_asyncio.apply()
@@ -40,11 +41,7 @@ persist_dir = "./storage"
 # --- MOTOR RAG ---
 @st.cache_resource
 def get_query_engine():
-    
-    # 1. Cerebro (GPT-4o-mini)
     llm = OpenAI(model="gpt-4o-mini", temperature=0.2)
-    
-    # 2. Traductor (Embeddings Pro)
     embed_model = OpenAIEmbedding(model="text-embedding-3-large")
 
     Settings.llm = llm
@@ -59,7 +56,6 @@ def get_query_engine():
     
     index = VectorStoreIndex(nodes, show_progress=True)
     
-    # 3. Personalidad de Janus
     template_str = (
         "Eres Janus, el Asistente Oficial de la Ventanilla Única de Inversión (VUI) de Colombia.\n"
         "Tu rol es actuar como un FACILITADOR ESTRATÉGICO.\n"
@@ -111,26 +107,37 @@ with tab_chat:
                 response_text = str(respuesta)
                 
                 with st.expander("Ver Respuesta de Janus", expanded=True):
-                    st.markdown(response_text) 
+                    st.markdown(response_text)
                     
-                    # --- FORMATO PARA EL ARCHIVO TXT ---
-                    contenido_txt = f"""
-********************************************************************************
+                    # --- LÓGICA DE FECHA Y HORA ---
+                    ahora = datetime.now()
+                    fecha_hora_texto = ahora.strftime("%Y-%m-%d %H:%M:%S") # Formato legible
+                    fecha_hora_archivo = ahora.strftime("%Y%m%d.%H%M")    # Formato aammdd.hhmm
+                    
+                    nombre_archivo = f"Janus.Answer.{fecha_hora_archivo}.txt"
+
+                    # --- FORMATO MEJORADO PARA EL ARCHIVO TXT ---
+                    contenido_txt = f"""================================================================================
+REPORTE DE CONSULTA - ASISTENTE VUI JANUS
+FECHA Y HORA: {fecha_hora_texto}
+================================================================================
+
 PREGUNTA DEL INVERSIONISTA:
 {prompt}
-********************************************************************************
+
+--------------------------------------------------------------------------------
 
 RESPUESTA DE JANUS:
 {response_text}
 
---------------------------------------------------------------------------------
-Generado por Asistente Virtual VUI - Janus
+================================================================================
+Generado por Inteligencia Artificial - Ventanilla Única de Inversión
 """
                     # Descarga
                     st.download_button(
                         label="📥 Guardar Respuesta (TXT)",
                         data=contenido_txt,
-                        file_name="Consulta_Janus.txt",
+                        file_name=nombre_archivo,
                         mime="text/plain"
                     )
             except Exception as e:
@@ -154,20 +161,29 @@ with tab_faq:
             with st.expander("Respuesta", expanded=True):
                 st.markdown(txt_resp)
                 
-                # --- FORMATO PARA EL ARCHIVO TXT (FAQs) ---
-                contenido_txt_faq = f"""
-********************************************************************************
-PREGUNTA FRECUENTE:
+                # --- LÓGICA DE FECHA Y HORA (También para FAQs) ---
+                ahora = datetime.now()
+                fecha_hora_texto = ahora.strftime("%Y-%m-%d %H:%M:%S")
+                fecha_hora_archivo = ahora.strftime("%Y%m%d.%H%M")
+                nombre_archivo = f"Janus.FAQ.{fecha_hora_archivo}.txt"
+
+                contenido_txt_faq = f"""================================================================================
+REPORTE DE PREGUNTA FRECUENTE - ASISTENTE VUI JANUS
+FECHA Y HORA: {fecha_hora_texto}
+================================================================================
+
+PREGUNTA SELECCIONADA:
 {question}
-********************************************************************************
+
+--------------------------------------------------------------------------------
 
 RESPUESTA DE JANUS:
 {txt_resp}
 
---------------------------------------------------------------------------------
-Generado por Asistente Virtual VUI - Janus
+================================================================================
+Generado por Inteligencia Artificial - Ventanilla Única de Inversión
 """
-                st.download_button("📥 Descargar TXT", data=contenido_txt_faq, file_name="FAQ_Janus.txt", mime="text/plain")
+                st.download_button("📥 Descargar TXT", data=contenido_txt_faq, file_name=nombre_archivo, mime="text/plain")
 
     if st.button(faq_1): run_faq(faq_1)
     if st.button(faq_2): run_faq(faq_2)
