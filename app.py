@@ -59,7 +59,7 @@ def get_query_engine():
     
     index = VectorStoreIndex(nodes, show_progress=True)
     
-    # 3. Personalidad de Janus (Formato Markdown para pantalla)
+    # 3. Personalidad de Janus
     template_str = (
         "Eres Janus, el Asistente Oficial de la Ventanilla Única de Inversión (VUI) de Colombia.\n"
         "Tu rol es actuar como un FACILITADOR ESTRATÉGICO.\n"
@@ -77,7 +77,6 @@ def get_query_engine():
     
     qa_template = PromptTemplate(template_str)
     
-    # Motor único
     query_engine = index.as_query_engine(
         similarity_top_k=5, 
         text_qa_template=qa_template
@@ -96,7 +95,7 @@ except Exception as e:
     st.error(f"Error: {e}")
     st.stop()
 
-# --- Pestaña 1: Chat (Formulario) ---
+# --- Pestaña 1: Chat ---
 with tab_chat:
     st.header("Haz tu consulta")
     st.markdown("¡Hola! Soy Janus. Estoy aquí para guiarte en tu Inversión Directa en Colombia.")
@@ -112,13 +111,26 @@ with tab_chat:
                 response_text = str(respuesta)
                 
                 with st.expander("Ver Respuesta de Janus", expanded=True):
-                    st.markdown(response_text) # Se ve bonito en pantalla
+                    st.markdown(response_text) 
                     
-                    # Descarga SEGURA en .TXT
+                    # --- FORMATO PARA EL ARCHIVO TXT ---
+                    contenido_txt = f"""
+********************************************************************************
+PREGUNTA DEL INVERSIONISTA:
+{prompt}
+********************************************************************************
+
+RESPUESTA DE JANUS:
+{response_text}
+
+--------------------------------------------------------------------------------
+Generado por Asistente Virtual VUI - Janus
+"""
+                    # Descarga
                     st.download_button(
                         label="📥 Guardar Respuesta (TXT)",
-                        data=response_text,
-                        file_name="Respuesta_Janus.txt",
+                        data=contenido_txt,
+                        file_name="Consulta_Janus.txt",
                         mime="text/plain"
                     )
             except Exception as e:
@@ -141,7 +153,21 @@ with tab_faq:
             
             with st.expander("Respuesta", expanded=True):
                 st.markdown(txt_resp)
-                st.download_button("📥 Descargar TXT", data=txt_resp, file_name="FAQ_Janus.txt", mime="text/plain")
+                
+                # --- FORMATO PARA EL ARCHIVO TXT (FAQs) ---
+                contenido_txt_faq = f"""
+********************************************************************************
+PREGUNTA FRECUENTE:
+{question}
+********************************************************************************
+
+RESPUESTA DE JANUS:
+{txt_resp}
+
+--------------------------------------------------------------------------------
+Generado por Asistente Virtual VUI - Janus
+"""
+                st.download_button("📥 Descargar TXT", data=contenido_txt_faq, file_name="FAQ_Janus.txt", mime="text/plain")
 
     if st.button(faq_1): run_faq(faq_1)
     if st.button(faq_2): run_faq(faq_2)
