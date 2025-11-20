@@ -74,7 +74,7 @@ def get_query_engine():
     qa_template = PromptTemplate(template_str)
     
     query_engine = index.as_query_engine(
-        similarity_top_k=5, 
+        similarity_top_k=10, 
         text_qa_template=qa_template
     ) 
     return query_engine
@@ -207,4 +207,5 @@ Generado por Inteligencia Artificial - Ventanilla Única de Inversión
         "Pregunta: {query_str}\n\n"
         "Respuesta:"
     )
+
 
