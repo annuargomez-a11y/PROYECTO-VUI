@@ -38,38 +38,54 @@ else:
 pdf_folder_path = "./ARCHIVOS/"
 persist_dir = "./storage"
 
-# --- MOTOR RAG ---
+# --- MOTOR RAG (VERSIÓN "SIEMPRE FRESCA") ---
 @st.cache_resource
 def get_query_engine():
+    
     llm = OpenAI(model="gpt-4o-mini", temperature=0.2)
     embed_model = OpenAIEmbedding(model="text-embedding-3-large")
-
     Settings.llm = llm
     Settings.embed_model = embed_model
     
-    print("--- INICIANDO MOTOR JANUS ---")
+    print("--- FORZANDO LECTURA DE ARCHIVOS ---")
+    
+    # 1. SIEMPRE leer los archivos (Eliminamos el 'if os.path.exists')
     reader = SimpleDirectoryReader(input_dir=pdf_folder_path, recursive=True)
     documents = reader.load_data()
+    print(f"Documentos leídos: {len(documents)}")
     
+    # 2. Cortar y Procesar
     node_parser = SentenceSplitter(chunk_size=1024, chunk_overlap=100)
     nodes = node_parser.get_nodes_from_documents(documents)
     
+    # 3. Crear Índice Nuevo
+    print("Creando índice nuevo...")
     index = VectorStoreIndex(nodes, show_progress=True)
+    print("¡Índice actualizado!")
     
+    # 4. Personalidad (Mantenemos la regla anti-VUCE)
     template_str = (
-        "Eres Janus, el Asistente Oficial de la Ventanilla Única de Inversión (VUI) de Colombia.\n"
-        "Tu rol es actuar como un FACILITADOR ESTRATÉGICO.\n"
+        "Eres Janus, el Asistente Oficial de la Ventanilla Única de Inversión (VUI).\n"
         "---------------------\n"
         "Contexto Normativo:\n{context_str}\n"
         "---------------------\n"
-        "Instrucciones:\n"
-        "1. Prioriza el FLUJO DEL PROCESO y los REQUISITOS. Evita instrucciones triviales de interfaz (como 'haz clic aquí') a menos que el usuario pida ayuda técnica específica."
-        "2. Usa formato Markdown (negritas, listas, tablas) para que se vea bien en pantalla.\n"
-        "3. Si la respuesta es breve, explica las implicaciones para el inversionista.\n"
-        "4. Responde siempre en el mismo idioma de la pregunta.\n"
+        "Instrucciones CRÍTICAS:\n"
+        "1. REGLA DE ORO: Para crear empresas o S.A.S., la plataforma es la VUE (Ventanilla Única Empresarial).\n"
+        "2. NO menciones la VUCE (Comercio Exterior) para este trámite.\n"
+        "3. Prioriza los pasos prácticos del manual de la VUE.\n"
+        "4. Responde en el idioma de la pregunta.\n"
         "Pregunta: {query_str}\n\n"
         "Respuesta:"
     )
+    
+    qa_template = PromptTemplate(template_str)
+    
+    # 5. Aumentamos la visión a 10 trozos
+    query_engine = index.as_query_engine(
+        similarity_top_k=10, 
+        text_qa_template=qa_template
+    ) 
+    return query_engine
     
     qa_template = PromptTemplate(template_str)
     
@@ -207,5 +223,6 @@ Generado por Inteligencia Artificial - Ventanilla Única de Inversión
         "Pregunta: {query_str}\n\n"
         "Respuesta:"
     )
+
 
 
