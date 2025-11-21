@@ -38,8 +38,12 @@ persist_dir = "./storage"
 @st.cache_resource
 def get_query_engine():
     
-    # 1. Cerebro (GPT-4o-mini)
-    llm = OpenAI(model="gpt-4o-mini", temperature=0.2)
+  # 1. Cerebro (GPT-4o-mini) con INSTRUCCIÓN SUPREMA DE IDIOMA
+    llm = OpenAI(
+        model="gpt-4o-mini", 
+        temperature=0.2,
+        system_prompt="You are Janus, an expert investment assistant. YOUR HIGHEST PRIORITY RULE: Always answer in the EXACT SAME LANGUAGE as the user's question. If the user asks in English, you MUST answer in English, translating the context if necessary."
+    )
     
     # 2. Traductor (Embeddings Pro)
     embed_model = OpenAIEmbedding(model="text-embedding-3-large")
@@ -195,3 +199,4 @@ Generado por Inteligencia Artificial - Ventanilla Única de Inversión
     if st.button(faq_3): run_faq(faq_3)
     if st.button(faq_4): run_faq(faq_4)
     if st.button(faq_5): run_faq(faq_5)
+
