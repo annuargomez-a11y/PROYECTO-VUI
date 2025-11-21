@@ -18,7 +18,7 @@ from llama_index.core import (
     Settings,
     PromptTemplate
 )
-from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.node_parser import SentenceSplitter 
 from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
 
@@ -48,7 +48,7 @@ def clean_text_for_pdf(text):
     }
     for char, replacement in replacements.items():
         text = text.replace(char, replacement)
-    text = text.replace('**', '').replace('*', '')
+    text = text.replace('**', '').replace('*', '') 
     text = text.replace('|', ' - ').replace('---', '')
     return text
 
@@ -77,22 +77,24 @@ def create_pdf(text):
 @st.cache_resource
 def get_query_engine():
     
-    # SYSTEM PROMPT (EN INGLÉS PARA EVITAR SESGOS)
+    # --- INSTRUCCIONES MAESTRAS (EN INGLÉS) ---
+    # Al poner esto en inglés, el modelo no se sesga y respeta el idioma del usuario.
     system_instruction = (
         "You are Janus, the Official Investment Assistant for the Single Investment Window (VUI) of Colombia. "
         "Your role is to act as a STRATEGIC FACILITATOR.\n"
         "CRITICAL RULES:\n"
         "1. LANGUAGE (MANDATORY): Detect the language of the user's question and answer in that EXACT SAME LANGUAGE. "
-        "If the user asks in English, answer in English.\n"
+        "If the user asks in English, answer in English. If in Spanish, answer in Spanish.\n"
         "2. VUE RULE: If asked about creating a company (S.A.S.), refer to VUE (Ventanilla Única Empresarial). Do NOT mention VUCE.\n"
         "3. CONTENT: Prioritize practical steps ('HOW') over legal theory ('WHAT').\n"
         "4. FORMAT: Use Markdown (bolding, lists)."
     )
 
+    # Configuración del Cerebro con la instrucción de sistema
     llm = OpenAI(
         model="gpt-4o-mini", 
         temperature=0.1,
-        system_prompt=system_instruction
+        system_prompt=system_instruction 
     )
     
     embed_model = OpenAIEmbedding(model="text-embedding-3-large")
@@ -144,15 +146,15 @@ with tab_chat:
                     # PDF
                     ahora = datetime.now()
                     nombre_pdf = f"Janus.Answer.{ahora.strftime('%Y%m%d.%H%M')}.pdf"
-                    texto_pdf = f"PREGUNTA:\n{prompt}\n\nRESPUESTA:\n{response_text}"
-                    pdf_bytes = create_pdf(texto_pdf)
+                    pdf_bytes = create_pdf(f"PREGUNTA:\n{prompt}\n\nRESPUESTA:\n{response_text}")
                     
                     if pdf_bytes:
                         st.download_button("📥 Guardar PDF", data=pdf_bytes, file_name=nombre_pdf, mime="application/pdf")
                     
                     # TXT
                     nombre_txt = f"Janus.Answer.{ahora.strftime('%Y%m%d.%H%M')}.txt"
-                    st.download_button("📥 Guardar TXT", data=texto_pdf, file_name=nombre_txt, mime="text/plain")
+                    contenido_txt = f"PREGUNTA:\n{prompt}\n\nRESPUESTA:\n{response_text}"
+                    st.download_button("📥 Guardar TXT", data=contenido_txt, file_name=nombre_txt, mime="text/plain")
             except Exception as e:
                 st.error(f"Error: {e}")
 
