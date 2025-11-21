@@ -3,9 +3,9 @@ import sys
 import logging
 import streamlit as st
 import nest_asyncio
-from datetime import datetime # <-- NUEVO: Para manejar fechas
+from datetime import datetime
 
-# --- PARCHES CRÍTICOS ---
+# --- PARCHES ---
 nest_asyncio.apply()
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
@@ -22,77 +22,67 @@ from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(
-    page_title="Asistente Janus (VUI)",
-    page_icon="🗝️",
-    layout="centered" 
-)
+st.set_page_config(page_title="Asistente Janus (VUI)", page_icon="🗝️", layout="centered")
 
 # --- API KEYS ---
 if "OPENAI_API_KEY" in st.secrets:
     os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 else:
-    st.error("Error: Falta la clave API de OpenAI en los Secrets.")
+    st.error("Error: Falta la clave API de OpenAI.")
     st.stop() 
 
 pdf_folder_path = "./ARCHIVOS/"
 persist_dir = "./storage"
 
-# --- MOTOR RAG (VERSIÓN "SIEMPRE FRESCA") ---
+# --- MOTOR RAG ---
 @st.cache_resource
 def get_query_engine():
     
+    # 1. Cerebro (GPT-4o-mini)
     llm = OpenAI(model="gpt-4o-mini", temperature=0.2)
+    
+    # 2. Traductor (Embeddings Pro)
     embed_model = OpenAIEmbedding(model="text-embedding-3-large")
+
     Settings.llm = llm
     Settings.embed_model = embed_model
     
-    print("--- FORZANDO LECTURA DE ARCHIVOS ---")
-    
-    # 1. SIEMPRE leer los archivos (Eliminamos el 'if os.path.exists')
+    print("--- INICIANDO MOTOR JANUS ---")
     reader = SimpleDirectoryReader(input_dir=pdf_folder_path, recursive=True)
     documents = reader.load_data()
-    print(f"Documentos leídos: {len(documents)}")
     
-    # 2. Cortar y Procesar
     node_parser = SentenceSplitter(chunk_size=1024, chunk_overlap=100)
     nodes = node_parser.get_nodes_from_documents(documents)
     
-    # 3. Crear Índice Nuevo
-    print("Creando índice nuevo...")
     index = VectorStoreIndex(nodes, show_progress=True)
-    print("¡Índice actualizado!")
     
-    # 4. Personalidad de Janus (MAESTRA)
+    # 3. PERSONALIDAD DE JANUS (EN INGLÉS PARA ELIMINAR SESGO)
+    # Al dar las instrucciones en inglés, el modelo se vuelve neutral y obedece el idioma del usuario.
     template_str = (
-        "Eres Janus, el Asistente Oficial de la Ventanilla Única de Inversión (VUI) de Colombia.\n"
-        "Tu rol es actuar como un FACILITADOR ESTRATÉGICO.\n"
+        "You are Janus, the Official Investment Assistant for the Single Investment Window (VUI) of Colombia.\n"
+        "Your role is to act as a STRATEGIC FACILITATOR.\n"
         "---------------------\n"
-        "Contexto Normativo:\n{context_str}\n"
+        "Context Information (Legal Guides & Manuals):\n{context_str}\n"
         "---------------------\n"
-        "Instrucciones CRÍTICAS (Orden de Prioridad):\n"
-        "1. IDIOMA (OBLIGATORIO): Detecta el idioma de la pregunta y responde EXCLUSIVAMENTE en ese mismo idioma. (Ej: Si preguntan en Inglés, responde en Inglés).\n"
-        "2. REGLA DE ORO VUE: Si preguntan por crear empresa o S.A.S., la plataforma es la VUE. NO menciones la VUCE.\n"
-        "3. OPORTUNIDADES: Si preguntan por proyectos o fichas, usa los documentos 'Proyecto_...' y da detalles financieros.\n"
-        "4. ESTILO: Prioriza el 'CÓMO' (pasos prácticos). Usa formato Markdown (negritas, listas).\n"
-        "5. VALOR AGREGADO: Si la respuesta es breve, explica las implicaciones para el inversionista.\n"
-        "Pregunta: {query_str}\n\n"
-        "Respuesta:"
+        "CRITICAL INSTRUCTIONS:\n"
+        "1. LANGUAGE DETECTION (MANDATORY): Detect the language of the user's 'Query' below. You MUST answer in that EXACT SAME LANGUAGE.\n"
+        "   - If Query is in English -> Answer in English.\n"
+        "   - If Query is in Russian -> Answer in Russian.\n"
+        "   - If Query is in French -> Answer in French.\n"
+        "   - If Query is in Spanish -> Answer in Spanish.\n"
+        "2. VUE RULE: If the user asks about creating a company or S.A.S., refer them to the VUE (Ventanilla Única Empresarial). Do NOT mention VUCE.\n"
+        "3. CONTENT: Prioritize practical steps ('HOW') over legal theory ('WHAT'). Use the provided context.\n"
+        "4. OPPORTUNITIES: If asked about projects/opportunities, summarize the 'Project_' documents.\n"
+        "5. FORMAT: Use Markdown (bolding, lists) for readability.\n\n"
+        "Query: {query_str}\n\n"
+        "Answer (in the user's language):"
     )
     
     qa_template = PromptTemplate(template_str)
     
-    # 5. Aumentamos la visión a 10 trozos
+    # Motor único
     query_engine = index.as_query_engine(
-        similarity_top_k=10, 
-        text_qa_template=qa_template
-    ) 
-    return query_engine
-    
-    qa_template = PromptTemplate(template_str)
-    
-    query_engine = index.as_query_engine(
-        similarity_top_k=10, 
+        similarity_top_k=5, 
         text_qa_template=qa_template
     ) 
     return query_engine
@@ -127,31 +117,29 @@ with tab_chat:
                 with st.expander("Ver Respuesta de Janus", expanded=True):
                     st.markdown(response_text)
                     
-                    # --- LÓGICA DE FECHA Y HORA ---
+                    # Lógica de fecha y hora para el archivo
                     ahora = datetime.now()
-                    fecha_hora_texto = ahora.strftime("%Y-%m-%d %H:%M:%S") # Formato legible
-                    fecha_hora_archivo = ahora.strftime("%Y%m%d.%H%M")    # Formato aammdd.hhmm
-                    
+                    fecha_hora_texto = ahora.strftime("%Y-%m-%d %H:%M:%S")
+                    fecha_hora_archivo = ahora.strftime("%Y%m%d.%H%M")
                     nombre_archivo = f"Janus.Answer.{fecha_hora_archivo}.txt"
 
-                    # --- FORMATO MEJORADO PARA EL ARCHIVO TXT ---
+                    # Contenido TXT limpio
                     contenido_txt = f"""================================================================================
 REPORTE DE CONSULTA - ASISTENTE VUI JANUS
 FECHA Y HORA: {fecha_hora_texto}
 ================================================================================
 
-PREGUNTA DEL INVERSIONISTA:
+PREGUNTA:
 {prompt}
 
 --------------------------------------------------------------------------------
 
-RESPUESTA DE JANUS:
+RESPUESTA:
 {response_text}
 
 ================================================================================
 Generado por Inteligencia Artificial - Ventanilla Única de Inversión
 """
-                    # Descarga
                     st.download_button(
                         label="📥 Guardar Respuesta (TXT)",
                         data=contenido_txt,
@@ -179,23 +167,22 @@ with tab_faq:
             with st.expander("Respuesta", expanded=True):
                 st.markdown(txt_resp)
                 
-                # --- LÓGICA DE FECHA Y HORA (También para FAQs) ---
                 ahora = datetime.now()
                 fecha_hora_texto = ahora.strftime("%Y-%m-%d %H:%M:%S")
                 fecha_hora_archivo = ahora.strftime("%Y%m%d.%H%M")
                 nombre_archivo = f"Janus.FAQ.{fecha_hora_archivo}.txt"
 
                 contenido_txt_faq = f"""================================================================================
-REPORTE DE PREGUNTA FRECUENTE - ASISTENTE VUI JANUS
+REPORTE FAQ - ASISTENTE VUI JANUS
 FECHA Y HORA: {fecha_hora_texto}
 ================================================================================
 
-PREGUNTA SELECCIONADA:
+PREGUNTA:
 {question}
 
 --------------------------------------------------------------------------------
 
-RESPUESTA DE JANUS:
+RESPUESTA:
 {txt_resp}
 
 ================================================================================
@@ -208,24 +195,3 @@ Generado por Inteligencia Artificial - Ventanilla Única de Inversión
     if st.button(faq_3): run_faq(faq_3)
     if st.button(faq_4): run_faq(faq_4)
     if st.button(faq_5): run_faq(faq_5)
-
-# 3. Personalidad de Janus (CON REGLA DE BLOQUEO VUCE)
-    template_str = (
-        "Eres Janus, el Asistente Oficial de la Ventanilla Única de Inversión (VUI) de Colombia.\n"
-        "Tu rol es actuar como un FACILITADOR ESTRATÉGICO.\n"
-        "---------------------\n"
-        "Contexto Normativo:\n{context_str}\n"
-        "---------------------\n"
-        "Instrucciones DE OBLIGATORIO CUMPLIMIENTO:\n"
-        "1. REGLA DE ORO: Si la pregunta es sobre 'Crear Empresa', 'Constitución de Sociedad' o 'S.A.S.', la ÚNICA plataforma válida es la VUE (Ventanilla Única Empresarial).\n"
-        "2. PROHIBICIÓN: En procesos de creación de empresa, ESTÁ PROHIBIDO mencionar la VUCE (Ventanilla Única de Comercio Exterior). La VUCE es solo para importaciones.\n"
-        "3. Prioriza el 'CÓMO' (pasos prácticos del manual de la VUE) sobre el 'QUÉ' (teoría legal).\n"
-        "4. Usa formato Markdown (negritas, listas).\n"
-        "5. Responde en el idioma de la pregunta.\n"
-        "Pregunta: {query_str}\n\n"
-        "Respuesta:"
-    )
-
-
-
-
