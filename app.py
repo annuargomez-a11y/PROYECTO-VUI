@@ -15,7 +15,7 @@ from llama_index.core import (
     StorageContext,
     load_index_from_storage,
     Settings,
-    PromptTemplate
+    PromptTemplate # <-- NUEVO: Importamos esto para controlar el molde
 )
 from llama_index.core.node_parser import SentenceSplitter 
 from llama_index.llms.openai import OpenAI
@@ -38,14 +38,10 @@ persist_dir = "./storage"
 @st.cache_resource
 def get_query_engine():
     
-  # 1. Cerebro (GPT-4o-mini) con INSTRUCCIÓN SUPREMA DE IDIOMA
-    llm = OpenAI(
-        model="gpt-4o-mini", 
-        temperature=0.2,
-        system_prompt="You are Janus, an expert investment assistant. YOUR HIGHEST PRIORITY RULE: Always answer in the EXACT SAME LANGUAGE as the user's question. If the user asks in English, you MUST answer in English, translating the context if necessary."
-    )
+    # 1. Cerebro
+    llm = OpenAI(model="gpt-4o-mini", temperature=0.1) # Bajamos temperatura para ser más estrictos
     
-    # 2. Traductor (Embeddings Pro)
+    # 2. Traductor
     embed_model = OpenAIEmbedding(model="text-embedding-3-large")
 
     Settings.llm = llm
@@ -60,34 +56,30 @@ def get_query_engine():
     
     index = VectorStoreIndex(nodes, show_progress=True)
     
-    # 3. PERSONALIDAD DE JANUS (EN INGLÉS PARA ELIMINAR SESGO)
-    # Al dar las instrucciones en inglés, el modelo se vuelve neutral y obedece el idioma del usuario.
+    # 3. LA SOLUCIÓN TÉCNICA: DEFINIR EL MOLDE EXACTO (PROMPT TEMPLATE)
+    # Esto reemplaza la instrucción por defecto de LlamaIndex.
+    # Forzamos la regla del idioma justo al lado de la pregunta.
+    
     template_str = (
-        "You are Janus, the Official Investment Assistant for the Single Investment Window (VUI) of Colombia.\n"
-        "Your role is to act as a STRATEGIC FACILITATOR.\n"
+        "You are Janus, the expert investment assistant for Colombia.\n"
+        "Context information is below.\n"
         "---------------------\n"
-        "Context Information (Legal Guides & Manuals):\n{context_str}\n"
+        "{context_str}\n"
         "---------------------\n"
-        "CRITICAL INSTRUCTIONS:\n"
-        "1. LANGUAGE DETECTION (MANDATORY): Detect the language of the user's 'Query' below. You MUST answer in that EXACT SAME LANGUAGE.\n"
-        "   - If Query is in English -> Answer in English.\n"
-        "   - If Query is in Russian -> Answer in Russian.\n"
-        "   - If Query is in French -> Answer in French.\n"
-        "   - If Query is in Spanish -> Answer in Spanish.\n"
-        "2. VUE RULE: If the user asks about creating a company or S.A.S., refer them to the VUE (Ventanilla Única Empresarial). Do NOT mention VUCE.\n"
-        "3. CONTENT: Prioritize practical steps ('HOW') over legal theory ('WHAT'). Use the provided context.\n"
-        "4. OPPORTUNITIES: If asked about projects/opportunities, summarize the 'Project_' documents.\n"
-        "5. FORMAT: Use Markdown (bolding, lists) for readability.\n\n"
-        "Query: {query_str}\n\n"
-        "Answer (in the user's language):"
+        "Given the context information and not prior knowledge, answer the query.\n"
+        "CRITICAL RULE: You MUST answer in the SAME LANGUAGE as the query.\n"
+        "If the query is in English, answer in English.\n"
+        "If the query is in Spanish, answer in Spanish.\n"
+        "Query: {query_str}\n"
+        "Answer:"
     )
     
     qa_template = PromptTemplate(template_str)
-    
-    # Motor único
+
+    # 4. Pasamos el template al motor
     query_engine = index.as_query_engine(
         similarity_top_k=5, 
-        text_qa_template=qa_template
+        text_qa_template=qa_template # <-- Aquí inyectamos la regla
     ) 
     return query_engine
 
@@ -113,7 +105,7 @@ with tab_chat:
         submitted = st.form_submit_button("Enviar Consulta a Janus")
 
     if submitted and prompt:
-        with st.spinner("Janus está analizando la normativa..."):
+        with st.spinner("Janus está analizando..."):
             try:
                 respuesta = query_engine.query(prompt)
                 response_text = str(respuesta)
@@ -121,13 +113,12 @@ with tab_chat:
                 with st.expander("Ver Respuesta de Janus", expanded=True):
                     st.markdown(response_text)
                     
-                    # Lógica de fecha y hora para el archivo
+                    # Lógica de fecha y archivo
                     ahora = datetime.now()
                     fecha_hora_texto = ahora.strftime("%Y-%m-%d %H:%M:%S")
                     fecha_hora_archivo = ahora.strftime("%Y%m%d.%H%M")
                     nombre_archivo = f"Janus.Answer.{fecha_hora_archivo}.txt"
 
-                    # Contenido TXT limpio
                     contenido_txt = f"""================================================================================
 REPORTE DE CONSULTA - ASISTENTE VUI JANUS
 FECHA Y HORA: {fecha_hora_texto}
@@ -199,4 +190,3 @@ Generado por Inteligencia Artificial - Ventanilla Única de Inversión
     if st.button(faq_3): run_faq(faq_3)
     if st.button(faq_4): run_faq(faq_4)
     if st.button(faq_5): run_faq(faq_5)
-
