@@ -1,11 +1,11 @@
+import streamlit as st
+import nest_asyncio
 import os
 import sys
 import logging
-import streamlit as st
-import nest_asyncio
 from datetime import datetime
 
-# --- 1. PARCHES DE SISTEMA ---
+# --- 1. PARCHES DE SISTEMA (OBLIGATORIO AL INICIO) ---
 nest_asyncio.apply()
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
@@ -35,6 +35,7 @@ else:
     st.error("Error Crítico: Falta la clave API de OpenAI en los Secrets.")
     st.stop()
 
+# Rutas
 pdf_folder_path = "./ARCHIVOS/"
 persist_dir = "./storage"
 
@@ -42,61 +43,55 @@ persist_dir = "./storage"
 @st.cache_resource
 def get_query_engine():
     
-    # Configuración del Modelo
-    # Usamos temperatura baja (0.1) para máxima fidelidad a las instrucciones
+    # Configuración del Modelo (Cerebro)
     llm = OpenAI(model="gpt-4o-mini", temperature=0.1)
     
-    # Configuración del Traductor (Embeddings)
+    # Configuración del Traductor
     embed_model = OpenAIEmbedding(model="text-embedding-3-large")
 
     Settings.llm = llm
     Settings.embed_model = embed_model
     
     # Carga de Documentos
-    reader = SimpleDirectoryReader(input_dir=pdf_folder_path, recursive=True)
-    documents = reader.load_data()
+    # Usamos un truco para evitar re-cargar si no es necesario, pero asegurando lectura
+    if not os.path.exists(persist_dir):
+        reader = SimpleDirectoryReader(input_dir=pdf_folder_path, recursive=True)
+        documents = reader.load_data()
+        
+        node_parser = SentenceSplitter(chunk_size=1024, chunk_overlap=100)
+        nodes = node_parser.get_nodes_from_documents(documents)
+        
+        index = VectorStoreIndex(nodes, show_progress=True)
+        index.storage_context.persist(persist_dir)
+    else:
+        storage_context = StorageContext.from_defaults(persist_dir=persist_dir)
+        index = load_index_from_storage(storage_context)
     
-    node_parser = SentenceSplitter(chunk_size=1024, chunk_overlap=100)
-    nodes = node_parser.get_nodes_from_documents(documents)
-    
-    index = VectorStoreIndex(nodes, show_progress=True)
-    
-    # --- INSTRUCCIONES MAESTRAS (PROMPT TEMPLATE) ---
-    # Usamos triple comilla (""") para evitar errores de sintaxis.
-    # Estas instrucciones están en INGLÉS para garantizar el comportamiento multilingüe.
-    
-    qa_template_str = """You are Janus, the Official Investment Assistant for the Single Investment Window (VUI) of Colombia.
-Your role is to act as a STRATEGIC FACILITATOR.
+    # --- LA SOLUCIÓN: TEXT QA TEMPLATE ---
+    # Este molde reemplaza al default de LlamaIndex.
+    # Obliga al modelo a mirar el idioma de la pregunta {query_str} justo antes de responder.
+    qa_prompt_str = (
+        "Context information is below.\n"
+        "---------------------\n"
+        "{context_str}\n"
+        "---------------------\n"
+        "Given the context information and not prior knowledge, answer the query.\n"
+        "CRITICAL RULE: Answer in the SAME LANGUAGE as the query below.\n"
+        "If the query is in English, answer in English.\n"
+        "If the query is in Spanish, answer in Spanish.\n"
+        "Query: {query_str}\n"
+        "Answer: "
+    )
+    qa_template = PromptTemplate(qa_prompt_str)
 
----------------------
-CONTEXT INFORMATION (Legal Guides, Manuals, Projects):
-{context_str}
----------------------
-
-CRITICAL INSTRUCTIONS FOR ANSWERING:
-1. LANGUAGE (MANDATORY): Detect the language of the user's query below. You MUST answer in that EXACT SAME LANGUAGE.
-   - Query in English -> Answer in English.
-   - Query in French -> Answer in French.
-   - Query in Spanish -> Answer in Spanish.
-2. VUE RULE: If the query is about creating a company (S.A.S.) or commercial registration, refer ONLY to the VUE (Ventanilla Única Empresarial). Do NOT mention VUCE.
-3. CONTENT: Prioritize practical steps ('HOW') over legal theory ('WHAT').
-4. OPPORTUNITIES: If asked about projects, summarize the available Project Fiches.
-5. FORMAT: Use Markdown (bolding, lists) for readability.
-
-Query: {query_str}
-
-Answer (in the query's language):"""
-
-    janus_template = PromptTemplate(qa_template_str)
-    
-    # Inyectamos el template al motor
+    # Inyectamos el template específico
     query_engine = index.as_query_engine(
-        similarity_top_k=5, 
-        text_qa_template=janus_template
+        similarity_top_k=5,
+        text_qa_template=qa_template
     ) 
     return query_engine
 
-# --- 5. INTERFAZ DE USUARIO ---
+# --- 5. INTERFAZ ---
 st.title("Asistente Janus")
 st.caption("Tu guía para la Ventanilla Única de Inversión (VUI).")
 
@@ -143,18 +138,13 @@ with tab_faq:
     faq_1 = "¿Qué incentivos fiscales hay para energías renovables no convencionales?"
     faq_2 = "¿Cuál es la estructura de sociedad recomendada (S.A.S.) y capital mínimo?"
     faq_3 = "¿Existen restricciones para repatriar utilidades al exterior?"
-
+    
     def run_faq(question):
         with st.spinner("Consultando..."):
             resp = query_engine.query(question)
             txt_resp = str(resp)
-            with st.expander(f"Respuesta: {question}", expanded=True):
+            with st.expander("Respuesta", expanded=True):
                 st.markdown(txt_resp)
-                
-                ahora = datetime.now()
-                nombre = f"Janus.FAQ.{ahora.strftime('%Y%m%d.%H%M')}.txt"
-                contenido = f"PREGUNTA:\n{question}\n\nRESPUESTA:\n{txt_resp}"
-                st.download_button("📥 Descargar TXT", data=contenido, file_name=nombre, mime="text/plain")
 
     if st.button(faq_1): run_faq(faq_1)
     if st.button(faq_2): run_faq(faq_2)
