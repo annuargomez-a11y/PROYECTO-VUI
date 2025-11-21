@@ -56,23 +56,24 @@ def get_query_engine():
     
     index = VectorStoreIndex(nodes, show_progress=True)
     
-    # 3. LA SOLUCIÓN TÉCNICA: DEFINIR EL MOLDE EXACTO (PROMPT TEMPLATE)
-    # Esto reemplaza la instrucción por defecto de LlamaIndex.
-    # Forzamos la regla del idioma justo al lado de la pregunta.
-    
+    # 3. Personalidad de Janus (VERSIÓN AGRESIVA DE IDIOMA)
     template_str = (
-        "You are Janus, the expert investment assistant for Colombia.\n"
-        "Context information is below.\n"
+        "You are Janus, an expert investment assistant for Colombia.\n"
         "---------------------\n"
-        "{context_str}\n"
+        "Context Information (Legal Guides & Manuals):\n{context_str}\n"
         "---------------------\n"
-        "Given the context information and not prior knowledge, answer the query.\n"
-        "CRITICAL RULE: You MUST answer in the SAME LANGUAGE as the query.\n"
-        "If the query is in English, answer in English.\n"
-        "If the query is in Spanish, answer in Spanish.\n"
-        "Query: {query_str}\n"
-        "Answer:"
+        "INSTRUCTIONS:\n"
+        "1. Analyze the user's query below.\n"
+        "2. If the query is in English, you MUST answer in English.\n"
+        "3. If the query is in Spanish, answer in Spanish.\n"
+        "4. Do NOT translate the query, just answer it in the same language.\n"
+        "5. Use the context provided to answer. If the context is in Spanish, translate the information to the user's language.\n"
+        "6. VUE RULE: Refer to VUE for company creation. Do not mention VUCE.\n\n"
+        "User Query: {query_str}\n\n"
+        "Answer (in the same language as the query):"
     )
+    
+    qa_template = PromptTemplate(template_str)
     
     qa_template = PromptTemplate(template_str)
 
@@ -190,3 +191,4 @@ Generado por Inteligencia Artificial - Ventanilla Única de Inversión
     if st.button(faq_3): run_faq(faq_3)
     if st.button(faq_4): run_faq(faq_4)
     if st.button(faq_5): run_faq(faq_5)
+
