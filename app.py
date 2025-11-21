@@ -2,8 +2,7 @@ import os
 import sys
 import logging
 import streamlit as st
-import nest_asyncio
-import re
+import nest_asyncio # <--- ¡ESTA ES LA LÍNEA QUE FALTA!
 from datetime import datetime
 from fpdf import FPDF
 
@@ -101,3 +100,4 @@ def get_query_engine():
         "Do NOT mention VUCE (which is only for foreign trade).\n"
         "3. CONTENT STYLE: Prioritize practical steps ('HOW') over legal theory ('WHAT'). Use the provided context to give specific details.\n"
         "4.
+
