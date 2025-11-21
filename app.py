@@ -38,30 +38,15 @@ else:
 pdf_folder_path = "./ARCHIVOS/"
 persist_dir = "./storage"
 
-# --- 4. MOTOR RAG (EL CEREBRO LIMPIO) ---
+# --- 4. MOTOR RAG ---
 @st.cache_resource
 def get_query_engine():
     
-    # SYSTEM PROMPT: La única instrucción que el modelo necesita para funcionar bien.
-    system_instruction = (
-        "You are Janus, the Official Investment Assistant for the Single Investment Window (VUI) of Colombia. "
-        "Your role is to act as a STRATEGIC FACILITATOR.\n"
-        "CRITICAL RULES:\n"
-        "1. LANGUAGE (MANDATORY): Detect the language of the user's question and answer in that EXACT SAME LANGUAGE. "
-        "If the user asks in English, answer in English. If in Spanish, answer in Spanish.\n"
-        "2. VUE RULE: If asked about creating a company (S.A.S.), refer to VUE (Ventanilla Única Empresarial). Do NOT mention VUCE.\n"
-        "3. CONTENT: Prioritize practical steps ('HOW') over legal theory ('WHAT').\n"
-        "4. FORMAT: Use Markdown (bolding, lists)."
-    )
-
     # Configuración del Modelo
-    llm = OpenAI(
-        model="gpt-4o-mini", 
-        temperature=0.1,
-        system_prompt=system_instruction
-    )
+    # Usamos temperatura baja (0.1) para máxima fidelidad a las instrucciones
+    llm = OpenAI(model="gpt-4o-mini", temperature=0.1)
     
-    # Configuración del Traductor
+    # Configuración del Traductor (Embeddings)
     embed_model = OpenAIEmbedding(model="text-embedding-3-large")
 
     Settings.llm = llm
@@ -76,10 +61,42 @@ def get_query_engine():
     
     index = VectorStoreIndex(nodes, show_progress=True)
     
-    query_engine = index.as_query_engine(similarity_top_k=5) 
+    # --- INSTRUCCIONES MAESTRAS (PROMPT TEMPLATE) ---
+    # Usamos triple comilla (""") para evitar errores de sintaxis.
+    # Estas instrucciones están en INGLÉS para garantizar el comportamiento multilingüe.
+    
+    qa_template_str = """You are Janus, the Official Investment Assistant for the Single Investment Window (VUI) of Colombia.
+Your role is to act as a STRATEGIC FACILITATOR.
+
+---------------------
+CONTEXT INFORMATION (Legal Guides, Manuals, Projects):
+{context_str}
+---------------------
+
+CRITICAL INSTRUCTIONS FOR ANSWERING:
+1. LANGUAGE (MANDATORY): Detect the language of the user's query below. You MUST answer in that EXACT SAME LANGUAGE.
+   - Query in English -> Answer in English.
+   - Query in French -> Answer in French.
+   - Query in Spanish -> Answer in Spanish.
+2. VUE RULE: If the query is about creating a company (S.A.S.) or commercial registration, refer ONLY to the VUE (Ventanilla Única Empresarial). Do NOT mention VUCE.
+3. CONTENT: Prioritize practical steps ('HOW') over legal theory ('WHAT').
+4. OPPORTUNITIES: If asked about projects, summarize the available Project Fiches.
+5. FORMAT: Use Markdown (bolding, lists) for readability.
+
+Query: {query_str}
+
+Answer (in the query's language):"""
+
+    janus_template = PromptTemplate(qa_template_str)
+    
+    # Inyectamos el template al motor
+    query_engine = index.as_query_engine(
+        similarity_top_k=5, 
+        text_qa_template=janus_template
+    ) 
     return query_engine
 
-# --- 5. INTERFAZ DE USUARIO (LIMPIA) ---
+# --- 5. INTERFAZ DE USUARIO ---
 st.title("Asistente Janus")
 st.caption("Tu guía para la Ventanilla Única de Inversión (VUI).")
 
@@ -110,7 +127,7 @@ with tab_chat:
                 with st.expander("Ver Respuesta de Janus", expanded=True):
                     st.markdown(response_text)
                     
-                    # Descarga ÚNICA en TXT
+                    # Descarga simple TXT
                     ahora = datetime.now()
                     nombre = f"Janus.Answer.{ahora.strftime('%Y%m%d.%H%M')}.txt"
                     contenido = f"PREGUNTA:\n{prompt}\n\nRESPUESTA:\n{response_text}"
@@ -126,14 +143,11 @@ with tab_faq:
     faq_1 = "¿Qué incentivos fiscales hay para energías renovables no convencionales?"
     faq_2 = "¿Cuál es la estructura de sociedad recomendada (S.A.S.) y capital mínimo?"
     faq_3 = "¿Existen restricciones para repatriar utilidades al exterior?"
-    faq_4 = "¿Qué permisos ambientales o licencias se necesitan para operar?"
-    faq_5 = "¿Qué garantías de estabilidad jurídica ofrece Colombia?"
 
     def run_faq(question):
         with st.spinner("Consultando..."):
             resp = query_engine.query(question)
             txt_resp = str(resp)
-            
             with st.expander(f"Respuesta: {question}", expanded=True):
                 st.markdown(txt_resp)
                 
@@ -145,5 +159,3 @@ with tab_faq:
     if st.button(faq_1): run_faq(faq_1)
     if st.button(faq_2): run_faq(faq_2)
     if st.button(faq_3): run_faq(faq_3)
-    if st.button(faq_4): run_faq(faq_4)
-    if st.button(faq_5): run_faq(faq_5)
