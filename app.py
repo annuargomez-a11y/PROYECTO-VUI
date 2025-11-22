@@ -32,39 +32,32 @@ else:
 pdf_folder_path = "./ARCHIVOS/"
 persist_dir = "./storage"
 
-# --- 3. FUNCIÓN DE TRADUCCIÓN DEDICADA ---
+# --- 3. FUNCIÓN DE TRADUCCIÓN (Mantenemos esta joya) ---
 def translate_response(text, user_query):
-    """
-    Fuerza la traducción de la respuesta al idioma de la pregunta.
-    """
     client = OpenAI(model="gpt-4o-mini", temperature=0)
-    
-    # Prompt específico para traducción pura
     prompt_traduccion = (
         f"User Query: '{user_query}'\n"
-        f"Text to Translate: '{text}'\n\n"
+        f"Original Answer: '{text}'\n\n"
         "INSTRUCTION: \n"
         "1. Detect the language of the 'User Query'.\n"
-        "2. Translate the 'Text to Translate' into that EXACT language.\n"
-        "3. Do NOT add introductions like 'Here is the translation'. Just give the translated text.\n"
-        "4. Maintain all Markdown formatting (bolding, lists).\n"
-        "5. If the query is already in Spanish, return the text exactly as is.\n\n"
+        "2. Translate the 'Original Answer' into that EXACT language.\n"
+        "3. Do NOT add introductions. Maintain Markdown.\n"
+        "4. If query is Spanish, return text as is.\n"
         "Translation:"
     )
-    
     return client.complete(prompt_traduccion).text
 
-# --- 4. MOTOR RAG (CEREBRO TÉCNICO) ---
+# --- 4. MOTOR RAG ---
 @st.cache_resource
 def get_query_engine():
-    # Configuración del Modelo (Experto en Español)
+    # Configuración del Modelo
     llm = OpenAI(model="gpt-4o-mini", temperature=0.1)
     embed_model = OpenAIEmbedding(model="text-embedding-3-large")
 
     Settings.llm = llm
     Settings.embed_model = embed_model
     
-    # Carga de documentos
+    # Carga
     reader = SimpleDirectoryReader(input_dir=pdf_folder_path, recursive=True)
     documents = reader.load_data()
     
@@ -73,15 +66,17 @@ def get_query_engine():
     
     index = VectorStoreIndex(nodes, show_progress=True)
     
-    # Prompt del sistema enfocado en CONTENIDO y PRECISIÓN (En Español)
+    # --- NUEVO SYSTEM PROMPT (Con las reglas del "Primo") ---
     system_prompt = (
-        "Eres Janus, el Asistente Oficial de la VUI Colombia. "
-        "Tu rol es FACILITADOR ESTRATÉGICO. "
-        "REGLAS: "
-        "1. Si preguntan por crear empresa/S.A.S, refiere a la VUE (Ventanilla Única Empresarial), nunca VUCE. "
-        "2. Prioriza pasos prácticos ('CÓMO'). "
-        "3. Si preguntan por proyectos, usa las Fichas. "
-        "4. Genera respuestas completas y detalladas en Markdown."
+        "Eres Janus, el Asistente Oficial de la VUI Colombia. Tu rol es FACILITADOR ESTRATÉGICO.\n\n"
+        "REGLAS DE NEGOCIO CRÍTICAS:\n"
+        "1. GEOGRAFÍA (Energía): Si el usuario NO especifica 'Costa Afuera' (Offshore), ASUME proyecto en Tierra Firme. "
+        "NO menciones 'Ocupación Temporal' ni cronogramas de la DIMAR. Guía hacia Licencia Ambiental (ANLA/CAR).\n"
+        "2. IDENTIDAD INSTITUCIONAL: Menciona siempre a la entidad (VUI, UPME, DIAN), NO al software. "
+        "Ejemplo: Di 'Gestiona en la plataforma de la UPME', NUNCA digas 'Regístrate en Bizagi'.\n"
+        "3. REGLA VUE: Para crear empresas, refiere a VUE, nunca VUCE.\n"
+        "4. PRIORIDAD: Pasos prácticos ('CÓMO') sobre teoría.\n"
+        "5. CIERRE COMERCIAL: Al final, pregunta siempre: '¿Te gustaría que te contacte con un especialista de la Dirección de Inversión?'"
     )
     
     llm.system_prompt = system_prompt
@@ -100,7 +95,7 @@ except Exception as e:
     st.error(f"Error al cargar el motor: {e}")
     st.stop()
 
-# --- Pestaña 1: Chat ---
+# Pestaña 1: Chat
 with tab_chat:
     st.header("Haz tu consulta")
     st.markdown("¡Hola! Soy Janus. Estoy aquí para guiarte en tu Inversión Directa en Colombia.")
@@ -110,12 +105,12 @@ with tab_chat:
         submitted = st.form_submit_button("Enviar Consulta")
 
     if submitted and prompt:
-        with st.spinner("Janus está analizando y traduciendo..."):
+        with st.spinner("Janus está analizando..."):
             try:
-                # PASO 1: Respuesta técnica (Español)
+                # 1. Respuesta Técnica (Español + Reglas de Negocio)
                 respuesta_raw = query_engine.query(prompt)
                 
-                # PASO 2: Traducción forzada (Al idioma del usuario)
+                # 2. Traducción (Si aplica)
                 response_final = translate_response(str(respuesta_raw), prompt)
                 
                 with st.expander("Ver Respuesta de Janus", expanded=True):
@@ -123,14 +118,13 @@ with tab_chat:
                     
                     # Descarga
                     ahora = datetime.now()
-                    nombre_file = f"Janus.Answer.{ahora.strftime('%Y%m%d.%H%M')}.txt"
+                    nombre = f"Janus.Answer.{ahora.strftime('%Y%m%d.%H%M')}.txt"
                     contenido = f"PREGUNTA:\n{prompt}\n\nRESPUESTA:\n{response_final}"
-                    st.download_button("📥 Guardar Respuesta (TXT)", data=contenido, file_name=nombre_file, mime="text/plain")
-                    
+                    st.download_button("📥 Guardar Respuesta (TXT)", data=contenido, file_name=nombre, mime="text/plain")
             except Exception as e:
                 st.error(f"Error: {e}")
 
-# --- Pestaña 2: FAQs (¡LAS 5 COMPLETAS!) ---
+# Pestaña 2: FAQs
 with tab_faq:
     st.header("Preguntas Frecuentes")
     
@@ -143,7 +137,7 @@ with tab_faq:
     def run_faq(q):
         with st.spinner("Consultando..."):
             resp = query_engine.query(q)
-            st.markdown(str(resp)) # FAQs siempre en español
+            st.markdown(str(resp))
 
     if st.button(faq_1): run_faq(faq_1)
     if st.button(faq_2): run_faq(faq_2)
