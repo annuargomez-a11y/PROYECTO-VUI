@@ -1,146 +1,147 @@
 import streamlit as st
-import nest_asyncio
-import os
-import sys
-from datetime import datetime
+from openai import OpenAI
 
-# --- 1. PARCHES DE SISTEMA ---
-nest_asyncio.apply()
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
-from llama_index.core import (
-    VectorStoreIndex,
-    SimpleDirectoryReader,
-    StorageContext,
-    load_index_from_storage,
-    Settings,
-    PromptTemplate
+# --- CONFIGURACIÓN DE LA PÁGINA (LOOK & FEEL VUI) ---
+st.set_page_config(
+    page_title="Janus VUI - Asesor Estratégico",
+    page_icon="🇨🇴",
+    layout="wide"
 )
-from llama_index.core.node_parser import SentenceSplitter
-from llama_index.llms.openai import OpenAI
-from llama_index.embeddings.openai import OpenAIEmbedding
 
-# --- 2. CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Asistente Janus (VUI)", page_icon="🗝️", layout="centered")
+# --- 1. EL CEREBRO: SYSTEM PROMPT (REGLAS DE NEGOCIO OPTIMIZADAS) ---
+JANUS_SYSTEM_PROMPT = """
+### ROL E IDENTIDAD
+Eres 'Janus', el Asesor Estratégico y Oficial de Cumplimiento Virtual de la Ventanilla Única de Inversión (VUI) de Colombia.
+Tu misión NO es recitar leyes como un buscador. Tu misión es ser un facilitador de negocios para inversionistas de alto nivel (CEOs, Directores Financieros) interesados en la Transición Energética.
+Tu tono es: Ejecutivo, Sobrio, Proactivo y Basado en Evidencia.
 
-if "OPENAI_API_KEY" in st.secrets:
-    os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
-else:
-    st.error("Error Crítico: Falta la clave API de OpenAI en los Secrets.")
+### DIRECTRICES DE COMPORTAMIENTO (PRIME DIRECTIVES)
+1. **Seguridad Jurídica:** Basa tus respuestas ÚNICAMENTE en el contexto recuperado (RAG). Si la información no está en tus documentos, responde: "No cuento con información oficial en mi base de conocimiento actual para validar este punto específico".
+2. **Anticipación de Riesgos:** No esperes a que el usuario pregunte por el problema. Si detectas un tema sensible (ej. impuestos, deuda, comunidades), advierte el riesgo proactivamente.
+3. **Posicionamiento VUI:** Siempre posiciona a la VUI como el orquestador central.
+
+### REGLAS DE LÓGICA DE NEGOCIO (CRÍTICAS - APLICAR SIEMPRE)
+SI el usuario pregunta sobre estos temas, DEBES aplicar la siguiente lógica estricta:
+
+1. **[TRIBUTARIO] Si preguntan por Renta/Utilidades:**
+   - ACLARACIÓN OBLIGATORIA: Explica que el beneficio de deducción de renta del 50% (Ley 1715/2099) tiene una vigencia de **15 AÑOS**.
+   - VALOR AGREGADO: Enfatiza que si no tienen renta líquida los primeros 5 años (fase constructiva), NO pierden el beneficio; lo arrastran para aplicarlo cuando generen utilidades.
+
+2. **[FINANCIERO] Si preguntan por Depreciación:**
+   - CORRECCIÓN: Nunca digas que es una tasa fija.
+   - INSTRUCCIÓN: Explica que es una tasa **FLEXIBLE**. El inversionista decide cuánto depreciar anualmente hasta un tope del 33.33% global anual, optimizando su flujo de caja (Ley 1715 art 14).
+
+3. **[CAMBIARIO] Si mencionan "Préstamo", "Deuda" o "Traer recursos":**
+   - 🚨 **ALERTA ROJA (PRIORIDAD MÁXIMA):** Advierte inmediatamente que deben registrar el endeudamiento externo ante el Banco de la República (Formulario 4) **ANTES o SIMULTÁNEAMENTE** al desembolso.
+   - ADVERTENCIA: "Hacerlo un día después acarrea sanciones severas". Menciona que el depósito actual es del 0%.
+
+4. **[SOCIAL] Si comparan regiones o mencionan "La Guajira":**
+   - REALISMO TÁCTICO: Advierte con profesionalismo que La Guajira presenta históricamente tiempos de licenciamiento y Consulta Previa sustancialmente más largos que el promedio nacional. Recomienda presupuestar holgura en el cronograma (Slack Time).
+
+5. **[OPERATIVO] Si reportan retrasos de conexión (UPME/SIN):**
+   - ESTRATEGIA DE AHORRO: NO sugieras pagar más garantías de entrada como primera opción.
+   - CONSEJO EXPERTO: Sugiere invocar primero la **Causal Eximente** (Art. 17, CREG 075) para modificar la FPO sin costo. Pagar garantías adicionales es solo el "Plan B".
+
+6. **[REGULATORIO] Si preguntan por Hidrógeno (H2):**
+   - PRECISIÓN: Aclara que la Certificación de Origen Comercial NO es requisito para los beneficios tributarios de la Ley 1715. Los incentivos dependen de que sea proyecto FNCER ante la UPME.
+
+7. **[ESTRATÉGICO] Si preguntan por Zonas Francas:**
+   - EXCEPCIÓN DE ORO: Si el proyecto es **Costa Afuera (Offshore)**, infórmales que la Ley 2277 permite mantener la tarifa de renta del 20% **SIN requisito de exportación**.
+
+8. **[JURÍDICO] Si preguntan por "Contratos de Estabilidad Jurídica":**
+   - VERDAD: Aclara que esa figura ya no existe.
+   - ALTERNATIVA: Remite a la protección de los Tratados Bilaterales de Inversión (BITs) y al régimen de Zonas Francas como mecanismos de estabilidad relativa.
+
+### FORMATO DE RESPUESTA
+- Usa **negritas** para resaltar conceptos clave.
+- Usa listas (bullets) para legibilidad.
+- Cita siempre la norma entre corchetes: [Fuente: Ley X].
+
+### CIERRE DE INTERACCIÓN
+Termina siempre con: *"¿Le gustaría que agende una cita prioritaria con un especialista de la Dirección de Inversión para revisar los detalles de su caso?"*
+"""
+
+# --- 2. GESTIÓN DE LA API KEY Y CLIENTE ---
+# Nota: En producción, usa st.secrets
+api_key = st.sidebar.text_input("OpenAI API Key", type="password")
+if not api_key:
+    st.info("Por favor, ingresa tu API Key para iniciar Janus.")
     st.stop()
 
-pdf_folder_path = "./ARCHIVOS/"
-persist_dir = "./storage"
+client = OpenAI(api_key=api_key)
 
-# --- 3. FUNCIÓN DE TRADUCCIÓN (Mantenemos esta joya) ---
-def translate_response(text, user_query):
-    client = OpenAI(model="gpt-4o-mini", temperature=0)
-    prompt_traduccion = (
-        f"User Query: '{user_query}'\n"
-        f"Original Answer: '{text}'\n\n"
-        "INSTRUCTION: \n"
-        "1. Detect the language of the 'User Query'.\n"
-        "2. Translate the 'Original Answer' into that EXACT language.\n"
-        "3. Do NOT add introductions. Maintain Markdown.\n"
-        "4. If query is Spanish, return text as is.\n"
-        "Translation:"
-    )
-    return client.complete(prompt_traduccion).text
-
-# --- 4. MOTOR RAG ---
-@st.cache_resource
-def get_query_engine():
-    # Configuración del Modelo
-    llm = OpenAI(model="gpt-4o-mini", temperature=0.1)
-    embed_model = OpenAIEmbedding(model="text-embedding-3-large")
-
-    Settings.llm = llm
-    Settings.embed_model = embed_model
+# --- 3. FUNCIÓN MOCKUP DEL RAG (¡AQUÍ VA TU LÓGICA DE BÚSQUEDA!) ---
+def retrieve_context(query):
+    """
+    IMPORTANTE: Reemplaza esta función con tu llamada real a tu Vector Database (Pinecone, Chroma, etc.).
+    Ahora mismo es un simulador para que el código funcione.
+    """
+    # TODO: Pega aquí tu código de búsqueda vectorial.
+    # Ejemplo: results = vector_store.similarity_search(query)
+    # return results
     
-    # Carga
-    reader = SimpleDirectoryReader(input_dir=pdf_folder_path, recursive=True)
-    documents = reader.load_data()
+    # Simulamos que encontramos documentos relevantes para la demo
+    return """
+    [DOCUMENTO RECUPERADO: LEY 1715]
+    Art 11. Deducción de Renta: Los obligados a declarar renta que realicen inversiones en FNCER tendrán derecho a deducir el 50% del valor de la inversión.
+    [DOCUMENTO RECUPERADO: REGIMEN CAMBIARIO]
+    El endeudamiento externo debe registrarse (Formulario 4) antes del desembolso. El depósito actual es 0%.
+    [DOCUMENTO RECUPERADO: GUIAS PROCOLOMBIA]
+    La Guajira tiene alta radiación pero retos en licenciamiento social.
+    """
+
+# --- 4. INTERFAZ DE CHAT ---
+st.title("🏛️ Janus: Asesor VUI (MVP)")
+st.markdown("**Asistente RAG Estratégico para Inversionistas - Transición Energética**")
+
+# Inicializar historial
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Mostrar historial
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# --- 5. LÓGICA PRINCIPAL ---
+if prompt := st.chat_input("Escriba su consulta como inversionista..."):
+    # A. Mostrar mensaje usuario
+    with st.chat_message("user"):
+        st.markdown(prompt)
+    st.session_state.messages.append({"role": "user", "content": prompt})
+
+    # B. Recuperar Contexto (RAG)
+    context_data = retrieve_context(prompt)
+
+    # C. Construir Mensaje para el LLM
+    # Inyectamos el contexto recuperado junto con la pregunta del usuario
+    full_prompt = f"""
+    CONTEXTO OFICIAL RECUPERADO DE LA BASE DE DATOS VUI:
+    {context_data}
+
+    PREGUNTA DEL INVERSIONISTA:
+    {prompt}
+    """
+
+    # D. Llamada a la API (AQUÍ ESTÁ EL CAMBIO DE TEMPERATURA)
+    with st.chat_message("assistant"):
+        stream = client.chat.completions.create(
+            model="gpt-4o", # O el modelo que estés usando (gpt-4-turbo / gpt-3.5-turbo)
+            messages=[
+                {"role": "system", "content": JANUS_SYSTEM_PROMPT}, # Tu nuevo prompt
+                *st.session_state.messages[:-1], # Historial previo
+                {"role": "user", "content": full_prompt} # Pregunta + Contexto RAG
+            ],
+            temperature=0.2, # <--- ¡CRÍTICO! TEMPERATURA BAJA PARA PRECISIÓN
+            stream=True,
+        )
+        response = st.write_stream(stream)
     
-    node_parser = SentenceSplitter(chunk_size=1024, chunk_overlap=100)
-    nodes = node_parser.get_nodes_from_documents(documents)
-    
-    index = VectorStoreIndex(nodes, show_progress=True)
-    
-    # --- NUEVO SYSTEM PROMPT (Con las reglas del "Primo") ---
-    system_prompt = (
-        "Eres Janus, el Asistente Oficial de la VUI Colombia. Tu rol es FACILITADOR ESTRATÉGICO.\n\n"
-        "REGLAS DE NEGOCIO CRÍTICAS:\n"
-        "1. GEOGRAFÍA (Energía): Si el usuario NO especifica 'Costa Afuera' (Offshore), ASUME proyecto en Tierra Firme. "
-        "NO menciones 'Ocupación Temporal' ni cronogramas de la DIMAR. Guía hacia Licencia Ambiental (ANLA/CAR).\n"
-        "2. IDENTIDAD INSTITUCIONAL: Menciona siempre a la entidad (VUI, UPME, DIAN), NO al software. "
-        "Ejemplo: Di 'Gestiona en la plataforma de la UPME', NUNCA digas 'Regístrate en Bizagi'.\n"
-        "3. REGLA VUE: Para crear empresas, refiere a VUE, nunca VUCE.\n"
-        "4. PRIORIDAD: Pasos prácticos ('CÓMO') sobre teoría.\n"
-        "5. CIERRE COMERCIAL: Al final, pregunta siempre: '¿Te gustaría que te contacte con un especialista de la Dirección de Inversión?'"
-    )
-    
-    llm.system_prompt = system_prompt
-    
-    return index.as_query_engine(similarity_top_k=5)
+    st.session_state.messages.append({"role": "assistant", "content": response})
 
-# --- 5. INTERFAZ DE USUARIO ---
-st.title("Asistente Janus")
-st.caption("Tu guía para la Ventanilla Única de Inversión (VUI).")
-
-tab_chat, tab_faq = st.tabs(["Consultar a Janus 💬", "Preguntas Frecuentes 💡"])
-
-try:
-    query_engine = get_query_engine()
-except Exception as e:
-    st.error(f"Error al cargar el motor: {e}")
-    st.stop()
-
-# Pestaña 1: Chat
-with tab_chat:
-    st.header("Haz tu consulta")
-    st.markdown("¡Hola! Soy Janus. Estoy aquí para guiarte en tu Inversión Directa en Colombia.")
-
-    with st.form("query_form"):
-        prompt = st.text_area("Escribe tu consulta aquí (Cualquier idioma):", height=100)
-        submitted = st.form_submit_button("Enviar Consulta")
-
-    if submitted and prompt:
-        with st.spinner("Janus está analizando..."):
-            try:
-                # 1. Respuesta Técnica (Español + Reglas de Negocio)
-                respuesta_raw = query_engine.query(prompt)
-                
-                # 2. Traducción (Si aplica)
-                response_final = translate_response(str(respuesta_raw), prompt)
-                
-                with st.expander("Ver Respuesta de Janus", expanded=True):
-                    st.markdown(response_final)
-                    
-                    # Descarga
-                    ahora = datetime.now()
-                    nombre = f"Janus.Answer.{ahora.strftime('%Y%m%d.%H%M')}.txt"
-                    contenido = f"PREGUNTA:\n{prompt}\n\nRESPUESTA:\n{response_final}"
-                    st.download_button("📥 Guardar Respuesta (TXT)", data=contenido, file_name=nombre, mime="text/plain")
-            except Exception as e:
-                st.error(f"Error: {e}")
-
-# Pestaña 2: FAQs
-with tab_faq:
-    st.header("Preguntas Frecuentes")
-    
-    faq_1 = "¿Qué incentivos fiscales hay para energías renovables no convencionales?"
-    faq_2 = "¿Cuál es la estructura de sociedad recomendada (S.A.S.) y capital mínimo?"
-    faq_3 = "¿Existen restricciones para repatriar utilidades al exterior?"
-    faq_4 = "¿Qué permisos ambientales o licencias se necesitan para operar?"
-    faq_5 = "¿Qué garantías de estabilidad jurídica ofrece Colombia?"
-
-    def run_faq(q):
-        with st.spinner("Consultando..."):
-            resp = query_engine.query(q)
-            st.markdown(str(resp))
-
-    if st.button(faq_1): run_faq(faq_1)
-    if st.button(faq_2): run_faq(faq_2)
-    if st.button(faq_3): run_faq(faq_3)
-    if st.button(faq_4): run_faq(faq_4)
-    if st.button(faq_5): run_faq(faq_5)
+# --- FOOTER / DEBUG ---
+with st.sidebar:
+    st.divider()
+    st.caption("MVP v1.0 | Desarrollado para MinComercio/VUI")
+    st.caption("Motor: RAG + OpenAI GPT-4o")
+    st.caption("Temp: 0.2 (Strict Mode)")
