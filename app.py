@@ -96,7 +96,9 @@ st.markdown("**Asistente RAG Estratégico para Inversionistas - Transición Ener
 
 # Inicializar historial
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+    st.session_state.messages = [
+        {"role": "assistant", "content": "👋 **Hola.** Soy Janus, su Oficial de Cumplimiento y Asesor Estratégico VUI.\n\nEstoy listo para validar aspectos regulatorios, tributarios y financieros de su proyecto de inversión. **¿Qué desea consultar hoy?**"}
+    ]
 
 # Mostrar historial
 for message in st.session_state.messages:
