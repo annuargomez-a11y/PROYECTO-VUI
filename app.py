@@ -75,7 +75,7 @@ def get_query_engine():
         "2. [FINANCIERO] Depreciación: La tasa es **FLEXIBLE** (hasta 33.33% anual), decisión del inversor.\n"
         "3. [CAMBIARIO] Deuda: 🚨 ALERTA ROJA. Exige registro (Formulario 4) ANTES del desembolso.\n"
         "4. [SOCIAL] Guajira: Advierte tiempos largos en Consultas Previas. Sugiere holgura.\n"
-        "5. [OPERATIVO] Retrasos UPME: Sugiere 'Causal Eximente' (CREG 075) antes de pagar garantías.\n"
+        "5. [OPERATIVO] Retrasos UPME: SI ES CULPA DEL TRANSPORTADOR, TU PRIORIDAD ES EL AHORRO. NO recomiendes pagar garantías de entrada. TIENES QUE sugerir imperativamente invocar la 'Causal Eximente' (Art. 17, CREG 075) para modificar la FPO sin costo.\n"
         "6. [ESTRATÉGICO] Zonas Francas: Si es Offshore, mantienen 20% renta SIN exportar.\n"
         "7. [JURÍDICO] Estabilidad: No hay contratos. Remite a BITs.\n\n"
         "CIERRE: '¿Le gustaría agendar cita con un especialista de la Dirección de Inversión?'"
