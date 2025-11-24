@@ -32,18 +32,22 @@ else:
 pdf_folder_path = "./ARCHIVOS/"
 persist_dir = "./storage"
 
-# --- 3. FUNCIÓN DE TRADUCCIÓN ---
+# --- 3. FUNCIÓN DE TRADUCCIÓN MEJORADA (Versión "Fuerza Bruta") ---
 def translate_response(text, user_query):
     client = OpenAI(model="gpt-4o-mini", temperature=0)
+    
+    # Le damos una identidad de traductor experto para evitar que opine
     prompt_traduccion = (
-        f"User Query: '{user_query}'\n"
-        f"Original Answer: '{text}'\n\n"
-        "INSTRUCTION: \n"
-        "1. Detect the language of the 'User Query'.\n"
-        "2. Translate the 'Original Answer' into that EXACT language.\n"
-        "3. Do NOT add introductions. Maintain Markdown.\n"
-        "4. If query is Spanish, return text as is.\n"
-        "Translation:"
+        f"You are a professional translator for an Investment Agency.\n"
+        f"USER QUERY: '{user_query}'\n"
+        f"ORIGINAL CONTENT: '{text}'\n\n"
+        "TASKS:\n"
+        "1. Identify the language of the USER QUERY (e.g., English, French, German).\n"
+        "2. IGNORE the language of the ORIGINAL CONTENT.\n"
+        "3. Translate the ORIGINAL CONTENT into the language of the USER QUERY.\n"
+        "4. If the User Query explicitly asks for a specific language (e.g. 'in English'), PRIORITIZE that instruction over detection.\n"
+        "5. Maintain all Markdown formatting (bolding, bullets).\n"
+        "6. Output ONLY the translation, no introductory text."
     )
     return client.complete(prompt_traduccion).text
 
