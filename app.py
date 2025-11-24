@@ -38,16 +38,16 @@ def translate_response(text, user_query):
     
     # Le damos una identidad de traductor experto para evitar que opine
     prompt_traduccion = (
-        f"You are a professional translator for an Investment Agency.\n"
+        f"You are a technical translator for an Investment Agency.\n"
         f"USER QUERY: '{user_query}'\n"
         f"ORIGINAL CONTENT: '{text}'\n\n"
         "TASKS:\n"
-        "1. Identify the language of the USER QUERY (e.g., English, French, German).\n"
-        "2. IGNORE the language of the ORIGINAL CONTENT.\n"
-        "3. Translate the ORIGINAL CONTENT into the language of the USER QUERY.\n"
-        "4. If the User Query explicitly asks for a specific language (e.g. 'in English'), PRIORITIZE that instruction over detection.\n"
-        "5. Maintain all Markdown formatting (bolding, bullets).\n"
-        "6. Output ONLY the translation, no introductory text."
+        "1. Identify the language of the USER QUERY.\n"
+        "2. Translate the ORIGINAL CONTENT into that language.\n"
+        "3. **CRITICAL: PRESERVE THE STRUCTURAL FORMAT EXACTLY.**\n"
+        "4. **Do NOT convert lists or bullet points into paragraphs.**\n"
+        "5. **Keep all bolding (**text**) and line breaks exactly where they are.**\n"
+        "6. Output ONLY the translation."
     )
     return client.complete(prompt_traduccion).text
 
@@ -87,7 +87,7 @@ def get_query_engine():
     
     llm.system_prompt = system_prompt
     
-    return index.as_query_engine(similarity_top_k=5)
+    return index.as_query_engine(similarity_top_k=7)
 
 # --- 5. INTERFAZ DE USUARIO ---
 st.title("Asistente Janus")
