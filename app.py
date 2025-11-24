@@ -32,22 +32,22 @@ else:
 pdf_folder_path = "./ARCHIVOS/"
 persist_dir = "./storage"
 
-# --- 3. FUNCIÓN DE TRADUCCIÓN MEJORADA (Versión "Fuerza Bruta") ---
+# --- 3. FUNCIÓN DE TRADUCCIÓN (Versión "Bilingüe Equilibrada") ---
 def translate_response(text, user_query):
     client = OpenAI(model="gpt-4o-mini", temperature=0)
     
-    # Le damos una identidad de traductor experto para evitar que opine
     prompt_traduccion = (
-        f"You are a technical translator for an Investment Agency.\n"
+        f"You are a technical assistant for an Investment Agency.\n"
         f"USER QUERY: '{user_query}'\n"
         f"ORIGINAL CONTENT: '{text}'\n\n"
         "TASKS:\n"
-        "1. Identify the language of the USER QUERY.\n"
-        "2. Translate the ORIGINAL CONTENT into that language.\n"
-        "3. **CRITICAL: PRESERVE THE STRUCTURAL FORMAT EXACTLY.**\n"
-        "4. **Do NOT convert lists or bullet points into paragraphs.**\n"
-        "5. **Keep all bolding (**text**) and line breaks exactly where they are.**\n"
-        "6. Output ONLY the translation."
+        "1. Detect the language of the USER QUERY (e.g. Spanish, English, French).\n"
+        "2. Output the ORIGINAL CONTENT in that EXACT language.\n"
+        "3. **CRITICAL SECURITY RULE: If the User Query is in Spanish, the Output MUST be in Spanish.**\n" 
+        "4. **CRITICAL: PRESERVE THE STRUCTURAL FORMAT EXACTLY.**\n"
+        "5. **Do NOT convert lists or bullet points into paragraphs.**\n"
+        "6. **Keep all bolding (**text**) and line breaks exactly where they are.**\n"
+        "7. Output ONLY the final text, no intros."
     )
     return client.complete(prompt_traduccion).text
 
